@@ -1,0 +1,10 @@
+# Maliev.DeliveryService Code Owners
+
+# Default owner for everything
+* @Maliev/delivery-team
+
+# CI/CD
+.github/ @Maliev/devops
+
+# Database
+Maliev.DeliveryService.Data/ @Maliev/database-team

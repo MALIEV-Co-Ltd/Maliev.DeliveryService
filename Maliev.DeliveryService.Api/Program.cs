@@ -72,8 +72,24 @@ builder.Services.AddScoped<IDeliveryNoteAuthorizationService, DeliveryNoteAuthor
 builder.Services.AddScoped<IDeliveryNoteService, DeliveryNoteService>();
 
 // Register Google Cloud Storage
-builder.Services.AddSingleton(Google.Cloud.Storage.V1.StorageClient.Create());
-builder.Services.AddScoped<IFileStorageService, GoogleCloudStorageService>();
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    try 
+    {
+        builder.Services.AddSingleton(Google.Cloud.Storage.V1.StorageClient.Create());
+        builder.Services.AddScoped<IFileStorageService, GoogleCloudStorageService>();
+    }
+    catch (Exception ex)
+    {
+        // Log warning but don't crash startup - allow app to run with limited functionality
+        Console.WriteLine($"WARNING: Google Cloud Storage client could not be initialized: {ex.Message}");
+    }
+}
+else
+{
+    // Register fake/mock for testing environment if needed
+    // builder.Services.AddScoped<IFileStorageService, MockFileStorageService>();
+}
 
 // Register HTTP Clients with Aspire resilience
 builder.Services.AddHttpClient<IOrderServiceClient, OrderServiceClient>(client =>

@@ -56,6 +56,9 @@ public class DeliveryServiceTestFixture : WebApplicationFactory<Program>, IAsync
                 options.DefaultAuthenticateScheme = "Test";
                 options.DefaultChallengeScheme = "Test";
             }).AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("Test", options => { });
+
+            // Register fake services
+            services.AddSingleton<Api.Services.IFileStorageService, Fakes.FakeFileStorageService>();
         });
     }
 }

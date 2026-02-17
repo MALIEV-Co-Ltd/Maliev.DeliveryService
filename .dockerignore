@@ -1,0 +1,17 @@
+**/.git
+**/.gitignore
+**/.vscode
+**/.vs
+**/.idea
+**/bin
+**/obj
+**/*.log
+**/*.env
+**/*.user
+**/*.suo
+**/TestResults
+**/CodeCoverage
+**/coverage*.json
+**/coverage*.xml
+**/*.coverage
+**/*.coveragexml

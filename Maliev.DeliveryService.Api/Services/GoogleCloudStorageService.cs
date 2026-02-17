@@ -67,7 +67,7 @@ public class GoogleCloudStorageService : IFileStorageService
                 : fileName;
 
             // Create signed URL using UrlSigner (synchronous operation)
-            var signedUrl = UrlSigner.FromServiceAccountCredential(
+            var signedUrl = UrlSigner.FromCredential(
                 Google.Apis.Auth.OAuth2.GoogleCredential.GetApplicationDefault().UnderlyingCredential as Google.Apis.Auth.OAuth2.ServiceAccountCredential)
                 .Sign(_bucketName, objectName, expiration, HttpMethod.Get);
 

@@ -89,7 +89,7 @@ public class DeliveryNoteServiceTests : IDisposable
         Assert.Single(result.Items);
 
         // Verify event was published
-        Assert.True(_fakePublishEndpoint.WasPublished<Api.Events.DeliveryNoteCreatedEvent>());
+        Assert.True(_fakePublishEndpoint.WasPublished<Maliev.MessagingContracts.Contracts.Delivery.DeliveryNoteCreatedEvent>());
     }
 
     [Fact]
@@ -179,7 +179,7 @@ public class DeliveryNoteServiceTests : IDisposable
         Assert.Equal("InTransit", result.Status);
 
         // Verify status changed event was published
-        var statusChangedEvents = _fakePublishEndpoint.GetPublishedMessages<Api.Events.DeliveryStatusChangedEvent>();
+        var statusChangedEvents = _fakePublishEndpoint.GetPublishedMessages<Maliev.MessagingContracts.Contracts.Delivery.DeliveryStatusChangedEvent>();
         Assert.Single(statusChangedEvents);
         Assert.Equal("Pending", statusChangedEvents[0].PreviousStatus);
         Assert.Equal("InTransit", statusChangedEvents[0].NewStatus);

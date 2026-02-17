@@ -2,6 +2,7 @@ using Maliev.DeliveryService.Api.DTOs;
 using Maliev.DeliveryService.Api.Events;
 using Maliev.DeliveryService.Api.Services;
 using Maliev.DeliveryService.Data;
+using Maliev.MessagingContracts.Contracts.Delivery;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 

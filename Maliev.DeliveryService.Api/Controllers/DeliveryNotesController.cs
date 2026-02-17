@@ -1,8 +1,8 @@
 using Asp.Versioning;
 using Maliev.DeliveryService.Api.DTOs;
-using Maliev.DeliveryService.Api.Events;
 using Maliev.DeliveryService.Api.Extensions;
 using Maliev.DeliveryService.Api.Services;
+using Maliev.MessagingContracts.Contracts.Delivery;
 using MassTransit;
 using Microsoft.AspNetCore.Mvc;
 

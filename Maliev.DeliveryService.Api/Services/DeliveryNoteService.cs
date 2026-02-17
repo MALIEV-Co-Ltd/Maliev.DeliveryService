@@ -1,8 +1,8 @@
 using Maliev.DeliveryService.Api.Clients;
 using Maliev.DeliveryService.Api.DTOs;
-using Maliev.DeliveryService.Api.Events;
 using Maliev.DeliveryService.Data;
 using Maliev.DeliveryService.Data.Entities;
+using Maliev.MessagingContracts.Contracts.Delivery;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
@@ -269,21 +269,15 @@ public class DeliveryNoteService : IDeliveryNoteService
         var cacheKey = $"delivery-note:{deliveryNoteId}";
         await _cache.RemoveAsync(cacheKey, ct);
 
-        // Publish DeliveryStatusChangedEvent with graceful degradation
+        // Publish DeliveryStatusChangedEvent
         await PublishEventAsync(new DeliveryStatusChangedEvent
         {
             DeliveryNoteId = deliveryNote.DeliveryNoteId,
             OrderId = deliveryNote.OrderId,
-            CustomerId = deliveryNote.CustomerId,
-            CustomerName = deliveryNote.CustomerName,
-            CustomerEmail = deliveryNote.DeliveryContactEmail,
-            CustomerPhone = deliveryNote.DeliveryContactPhone,
             PreviousStatus = oldStatus.ToString(),
             NewStatus = newStatus.ToString(),
             ActualDeliveryTime = deliveryNote.ActualDeliveryTime,
             ReceivedByName = deliveryNote.ReceivedByName,
-            TrackingNumber = deliveryNote.TrackingNumber,
-            CarrierName = deliveryNote.CarrierName,
             ChangedAt = deliveryNote.UpdatedAt ?? DateTime.UtcNow,
             ChangedBy = updatedBy
         }, ct);

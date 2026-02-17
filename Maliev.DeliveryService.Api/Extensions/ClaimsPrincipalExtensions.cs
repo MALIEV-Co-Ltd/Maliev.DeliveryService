@@ -4,19 +4,14 @@ namespace Maliev.DeliveryService.Api.Extensions;
 
 public static class ClaimsPrincipalExtensions
 {
-    public static string GetPrincipalId(this ClaimsPrincipal principal)
-    {
-        return principal.FindFirst(ClaimTypes.NameIdentifier)?.Value
-            ?? principal.FindFirst("sub")?.Value
-            ?? throw new InvalidOperationException("Principal ID not found in claims");
-    }
-
     public static string GetUserId(this ClaimsPrincipal principal)
     {
         return principal.FindFirst(ClaimTypes.NameIdentifier)?.Value
             ?? principal.FindFirst("sub")?.Value
             ?? throw new InvalidOperationException("User ID not found in claims");
     }
+
+    public static string GetPrincipalId(this ClaimsPrincipal principal) => GetUserId(principal);
 
     public static List<Guid> GetCustomerIds(this ClaimsPrincipal principal)
     {

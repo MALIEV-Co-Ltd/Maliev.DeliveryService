@@ -87,8 +87,7 @@ if (!builder.Environment.IsEnvironment("Testing"))
 }
 else
 {
-    // Register fake/mock for testing environment if needed
-    // builder.Services.AddScoped<IFileStorageService, MockFileStorageService>();
+    // File storage not registered in testing environment - tests should mock IFileStorageService via WebApplicationFactory
 }
 
 // Register HTTP Clients with Aspire resilience

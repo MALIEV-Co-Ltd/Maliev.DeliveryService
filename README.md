@@ -1,86 +1,140 @@
-# Maliev.DeliveryService
+# Maliev Delivery Service
 
-A high-performance microservice for managing delivery notes, partial shipments, and delivery evidence documentation. Built with **.NET 10**, **Entity Framework Core 10**, and **MassTransit**.
+[![Build Status](https://img.shields.io/badge/Build-Passing-success)](https://github.com/MALIEV-Co-Ltd/Maliev.DeliveryService)
+[![.NET Version](https://img.shields.io/badge/.NET-10.0-blue)](https://dotnet.microsoft.com/download/dotnet/10.0)
+[![Database](https://img.shields.io/badge/Database-PostgreSQL%2018-blue)](https://www.postgresql.org/)
 
-## 🚀 Features
+High-performance microservice for managing delivery notes, partial shipments, and delivery evidence documentation for the Maliev manufacturing ecosystem.
 
-*   **Delivery Note Management**: Create, update, and track delivery notes.
-*   **Sequential ID Generation**: Format `DN-YYYY-XXXXXX` with concurrency handling.
-*   **Partial Deliveries**: Validation to ensure delivery quantities do not exceed order quantities.
-*   **Event-Driven Architecture**: Consumes `OrderCompletedEvent` to auto-create drafts.
-*   **PDF Generation**: Triggers Thai/English PDF generation via event bus.
-*   **Evidence Handling**: Upload signatures and photos to Google Cloud Storage.
+**Role in MALIEV Architecture**: The central authority for outbound logistics documentation. It manages the lifecycle of Delivery Notes (DN), handles sequential ID generation, and integrates with Google Cloud Storage for digital evidence (signatures/photos), ensuring a seamless transition from manufacturing completion to customer delivery.
 
-## 🛠 Tech Stack
+---
 
-*   **.NET 10** (C# 13)
-*   **PostgreSQL 18** (Data persistence)
-*   **Redis** (Distributed caching)
-*   **RabbitMQ** (Message bus via MassTransit)
-*   **Google Cloud Storage** (File storage)
-*   **OpenAPI / Scalar** (API Documentation)
-*   **Testcontainers** (Integration testing)
+## 🏗️ Architecture & Tech Stack
 
-## 📦 Project Structure
+- **Framework**: ASP.NET Core 10.0 (C# 13)
+- **Database**: PostgreSQL 18 with Entity Framework Core 10.x
+- **Messaging**: RabbitMQ via MassTransit
+- **Storage**: Google Cloud Storage (Bucket-based signature and evidence storage)
+- **API Documentation**: OpenAPI 3.1 + Scalar UI
+- **Observability**: OpenTelemetry (Metrics, Traces, Logging)
 
-*   `Maliev.DeliveryService.Api`: The Web API entry point.
-*   `Maliev.DeliveryService.Data`: EF Core DbContext, Entities, and Migrations.
-*   `Maliev.DeliveryService.Tests`: Unit and Integration tests.
+---
 
-## 🔧 Setup & Running
+## ⚖️ Constitution Rules
+
+This service strictly adheres to the platform development mandates:
+
+### Banned Libraries
+To maintain high performance and low complexity, the following are **NOT** used:
+- ❌ **AutoMapper**: Explicit manual mapping only.
+- ❌ **FluentValidation**: Standard Data Annotations (`[Required]`, `[Range]`) only.
+- ❌ **FluentAssertions**: Standard xUnit `Assert` methods only.
+- ❌ **In-memory Test DB**: All integration tests use **Testcontainers** with real PostgreSQL 18.
+
+### Mandatory Practices
+- ✅ **TreatWarningsAsErrors**: Enabled in all `.csproj` files.
+- ✅ **XML Documentation**: Required on all public methods and properties.
+- ✅ **No Secrets in Code**: All sensitive configuration injected via environment variables.
+- ✅ **No Test Config in Program.cs**: Test configuration in test fixtures only.
+- ✅ **IAM Integration**: Self-registers permissions with the IAM Service using GCP-style naming: `{service}.{resource}.{action}`.
+
+---
+
+## ✨ Key Features
+
+- **Delivery Note Management**: Full lifecycle management of delivery documentation from draft to completed.
+- **Sequential ID Generation**: Robust format `DN-YYYY-XXXXXX` with high-concurrency handling.
+- **Partial Delivery Validation**: Logic to prevent shipment quantities from exceeding order quantities across multiple notes.
+- **Event-Driven Workflows**: Consumes `OrderCompletedEvent` to automate draft creation and publishes `DeliveryNoteCreatedEvent` for PDF generation.
+- **Evidence Documentation**: Digital signature and photo evidence handling with secure storage.
+
+---
+
+## 🚀 Quick Start
 
 ### Prerequisites
+- .NET 10.0 SDK
+- Docker Desktop (for infrastructure)
+- PostgreSQL 18 (Alpine)
 
-*   .NET 10 SDK
-*   Docker Desktop (for databases and message broker)
+### Local Development Setup
 
-### Running Locally
+1. **Clone the repository**
+```bash
+git clone https://github.com/MALIEV-Co-Ltd/Maliev.DeliveryService.git
+cd Maliev.DeliveryService
+```
 
-1.  **Start dependencies**: Ensure Docker is running.
-2.  **Run the application**:
-    ```bash
-    dotnet run --project Maliev.DeliveryService.Api/Maliev.DeliveryService.Api.csproj
-    ```
-    The app will attempt to connect to infrastructure. For full orchestration, run via the Aspire AppHost (if available in the parent solution).
+2. **Spin up Infrastructure**
+```bash
+docker run --name delivery-db -e POSTGRES_PASSWORD=YOUR_PASSWORD -p 5432:5432 -d postgres:18-alpine
+docker run --name delivery-rabbitmq -p 5672:5672 -p 15672:15672 -d rabbitmq:3-management-alpine
+```
 
-### Configuration
+3. **Configure Environment**
+```powershell
+# Windows PowerShell
+$env:ConnectionStrings__DeliveryDb="YOUR_POSTGRES_CONNECTION_STRING"
+$env:ConnectionStrings__Messaging="amqp://guest:guest@localhost:5672"
+$env:GoogleCloud__BucketName="maliev-delivery-evidence-dev"
+```
 
-Copy `appsettings.json` to `appsettings.Development.json` and configure:
+4. **Apply Migrations & Run**
+```bash
+dotnet ef database update --project Maliev.DeliveryService.Data
+dotnet run --project Maliev.DeliveryService.Api
+```
 
-*   `ConnectionStrings:DeliveryDb` (PostgreSQL)
-*   `Redis:ConnectionString`
-*   `RabbitMQ:Host`, `Username`, `Password`
-*   `GoogleCloud:BucketName` (Optional for local dev)
+The service will be available at `http://localhost:5000/delivery`. Access the interactive documentation at `http://localhost:5000/delivery/scalar`.
+
+---
+
+## 📡 API Endpoints
+
+All endpoints are prefixed with `/delivery/v1/`.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/notes` | Create a new delivery note |
+| GET | `/notes/{id}` | Get delivery note details |
+| PUT | `/notes/{id}/complete` | Finalize a delivery note and trigger events |
+| POST | `/notes/{id}/evidence` | Upload signature or photo evidence |
+
+---
+
+## 🏥 Health & Monitoring
+
+Standardized health probes for Kubernetes orchestration:
+- **Liveness**: `GET /delivery/liveness`
+- **Readiness**: `GET /delivery/readiness` (Checks DB, RabbitMQ, and Storage connectivity)
+- **Metrics**: `GET /delivery/metrics` (Prometheus format)
+
+---
 
 ## 🧪 Testing
 
-The solution includes a comprehensive test suite covering unit logic, consumers, and end-to-end integration flows.
+We prioritize reliable tests over mock-heavy unit tests.
 
-### Running Unit Tests
-Fast, in-memory tests for business logic and consumers.
 ```bash
-dotnet test Maliev.DeliveryService.Tests --filter Category!=Integration
+# Run all tests using Testcontainers
+dotnet test --verbosity normal
 ```
 
-### Running Integration Tests
-Uses **Testcontainers** to spin up real PostgreSQL instances. Requires Docker.
-```bash
-dotnet test Maliev.DeliveryService.Tests --filter Category=Integration
-```
+- **Integration Tests**: Use real PostgreSQL 18 containers.
+- **Consumer Tests**: Verify MassTransit logic using in-memory harness.
 
-### Running Consumer Tests
-Verifies MassTransit consumers using the in-memory test harness.
-```bash
-dotnet test Maliev.DeliveryService.Tests --filter "FullyQualifiedName~Consumers"
-```
+---
 
-## 📚 API Documentation
+## 📦 Deployment
 
-When running locally in Development mode, API documentation is available at:
+Infrastructure management is handled via GitOps patterns.
 
-*   **Scalar UI**: `https://localhost:5001/scalar/v1`
-*   **OpenAPI JSON**: `https://localhost:5001/openapi/v1.json`
+- **Docker Image**: `REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/maliev-delivery-service:{sha}`
+- **Environments**: Development, Staging, Production
 
-## 🔒 Authentication
+---
 
-The API uses Bearer Token authentication. Ensure your requests include a valid JWT with `sub` (User ID) and `customer_id` claims.
+## 📄 License
+
+Proprietary - © 2026 MALIEV Co., Ltd. All rights reserved.

@@ -40,6 +40,9 @@ public class DeliveryNoteItemConfiguration : IEntityTypeConfiguration<DeliveryNo
             t.HasCheckConstraint("CK_delivery_note_items_quantity_delivered_max", "quantity_delivered <= quantity_manufactured");
         });
 
+        // Query Filter: match DeliveryNote's soft-delete filter (EF Core 10622)
+        builder.HasQueryFilter(i => !i.DeliveryNote!.IsDeleted);
+
         // Index
         builder.HasIndex(i => i.DeliveryNoteId).HasDatabaseName("idx_delivery_note_items_delivery_note_id");
     }

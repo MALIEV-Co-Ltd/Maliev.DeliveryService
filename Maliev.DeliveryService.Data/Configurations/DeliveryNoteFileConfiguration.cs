@@ -26,9 +26,6 @@ public class DeliveryNoteFileConfiguration : IEntityTypeConfiguration<DeliveryNo
         builder.Property(f => f.IsDeleted).HasColumnName("is_deleted").IsRequired().HasDefaultValue(false);
         builder.Property(f => f.DeletedAt).HasColumnName("deleted_at");
 
-        // Query Filter: match DeliveryNote's soft-delete filter (EF Core 10622)
-        builder.HasQueryFilter(f => !f.IsDeleted && !f.DeliveryNote!.IsDeleted);
-
         // Index
         builder.HasIndex(f => f.DeliveryNoteId).HasDatabaseName("idx_delivery_note_files_delivery_note_id")
             .HasFilter("NOT is_deleted");

@@ -1,10 +1,9 @@
 using Asp.Versioning;
-using Maliev.Aspire.ServiceDefaults;
 using Maliev.DeliveryService.Api.Clients;
 using Maliev.DeliveryService.Api.Services;
 using Maliev.DeliveryService.Data;
 using MassTransit;
-using Microsoft.Extensions.Hosting;
+using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -12,34 +11,60 @@ var builder = WebApplication.CreateBuilder(args);
 // Add Aspire ServiceDefaults (OpenTelemetry, Health Checks, Service Discovery)
 builder.AddServiceDefaults();
 
-// Configure DbContext with PostgreSQL using Aspire extension
-builder.AddPostgresDbContext<DeliveryDbContext>(connectionName: "DeliveryDbContext");
+// Configure DbContext with PostgreSQL
+builder.Services.AddDbContext<DeliveryDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DeliveryDb")));
 
-// Configure MassTransit with RabbitMQ using Aspire extension
-builder.AddMassTransitWithRabbitMq(x =>
+// Configure MassTransit with RabbitMQ
+if (!builder.Environment.IsEnvironment("Testing"))
 {
-    // Register event consumers
-    x.AddConsumer<Maliev.DeliveryService.Api.Consumers.OrderCompletedEventConsumer>();
-}, (context, cfg) =>
-{
-    // Configure retry policy with exponential backoff (1s, 2s, 4s, 8s, 16s)
-    cfg.UseMessageRetry(r =>
+    builder.Services.AddMassTransit(x =>
     {
-        r.Exponential(5, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(16), TimeSpan.FromSeconds(1));
+        // Register event consumers
+        x.AddConsumer<Maliev.DeliveryService.Api.Consumers.OrderCompletedEventConsumer>();
+
+        x.UsingRabbitMq((context, cfg) =>
+        {
+            var rabbitMqConfig = builder.Configuration.GetSection("RabbitMQ");
+            cfg.Host(rabbitMqConfig["Host"], h =>
+            {
+                h.Username(rabbitMqConfig["Username"] ?? "guest");
+                h.Password(rabbitMqConfig["Password"] ?? "guest");
+            });
+
+            // Configure retry policy with exponential backoff (1s, 2s, 4s, 8s, 16s)
+            cfg.UseMessageRetry(r =>
+            {
+                r.Exponential(5, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(16), TimeSpan.FromSeconds(1));
+            });
+
+            cfg.ConfigureEndpoints(context);
+        });
     });
+}
+else
+{
+    builder.Services.AddMassTransit(x =>
+    {
+        x.UsingInMemory((context, cfg) =>
+        {
+            cfg.ConfigureEndpoints(context);
+        });
+    });
+}
 
-    cfg.ConfigureEndpoints(context);
-});
-
-// Configure Redis using Aspire extension
-builder.AddStandardCache("delivery:");
-
-// JWT Authentication and Permission Authorization
-builder.AddJwtAuthentication();
-builder.Services.AddPermissionAuthorization();
-
-// Register IAM service
-builder.Services.AddIAMRegistration<DeliveryIAMRegistrationService>("delivery");
+// Configure Redis
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddStackExchangeRedisCache(options =>
+    {
+        options.Configuration = builder.Configuration.GetSection("Redis")["ConnectionString"];
+    });
+}
+else
+{
+    builder.Services.AddDistributedMemoryCache();
+}
 
 // Register Services
 builder.Services.AddScoped<DeliveryNoteIdGenerator>();
@@ -60,15 +85,17 @@ if (!builder.Environment.IsEnvironment("Testing"))
         Console.WriteLine($"WARNING: Google Cloud Storage client could not be initialized: {ex.Message}");
     }
 }
+else
+{
+    // File storage not registered in testing environment - tests should mock IFileStorageService via WebApplicationFactory
+}
 
 // Register HTTP Clients with Aspire resilience
 builder.Services.AddHttpClient<IOrderServiceClient, OrderServiceClient>(client =>
 {
-    // Use service discovery name
-    var baseUrl = builder.Configuration["OrderService:BaseUrl"];
-    client.BaseAddress = new Uri(!string.IsNullOrEmpty(baseUrl) ? baseUrl : "http://OrderService");
+    client.BaseAddress = new Uri(builder.Configuration["OrderService:BaseUrl"] ?? "http://localhost:5001");
     client.Timeout = TimeSpan.FromSeconds(10);
-}).AddStandardResilienceHandler();
+}).AddStandardResilienceHandler(); // Aspire built-in exponential backoff retry
 
 // Add Controllers
 builder.Services.AddControllers();
@@ -87,21 +114,24 @@ builder.Services.AddApiVersioning(options =>
 });
 
 // Configure OpenAPI
-if (!builder.Environment.IsProduction())
+if (!builder.Environment.IsEnvironment("Testing"))
 {
     builder.Services.AddOpenApi();
 }
 
-// Custom health checks (Postgres, Redis and RabbitMQ are handled by extensions)
-builder.Services.AddHealthChecks()
-    .AddCheck<Maliev.DeliveryService.Api.HealthChecks.DatabaseMigrationHealthCheck>(
-        "database_migrations",
-        tags: new[] { "ready" });
+// Configure Health Checks
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddHealthChecks()
+        .AddNpgSql(builder.Configuration.GetConnectionString("DeliveryDb") ?? throw new InvalidOperationException("DeliveryDb connection string not configured"))
+        .AddRedis(builder.Configuration.GetSection("Redis")["ConnectionString"] ?? throw new InvalidOperationException("Redis connection string not configured"))
+        .AddRabbitMQ()
+        .AddCheck<Maliev.DeliveryService.Api.HealthChecks.DatabaseMigrationHealthCheck>(
+            "database_migrations",
+            tags: new[] { "ready" });
+}
 
 var app = builder.Build();
-
-// Apply database migrations on startup
-await app.MigrateDatabaseAsync<DeliveryDbContext>();
 
 // Configure the HTTP request pipeline
 app.MapDefaultEndpoints("delivery"); // Aspire health checks and diagnostics
@@ -118,7 +148,6 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 

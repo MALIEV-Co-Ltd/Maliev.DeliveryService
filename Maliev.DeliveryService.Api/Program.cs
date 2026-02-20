@@ -25,11 +25,11 @@ if (!builder.Environment.IsEnvironment("Testing"))
 
         x.UsingRabbitMq((context, cfg) =>
         {
-            var rabbitMqConfig = builder.Configuration.GetSection("RabbitMQ");
-            cfg.Host(rabbitMqConfig["Host"], h =>
+            var rabbitmqConnectionString = builder.Configuration.GetConnectionString("rabbitmq")
+                ?? throw new InvalidOperationException("RabbitMQ connection string 'rabbitmq' not configured.");
+            cfg.Host(rabbitmqConnectionString, h =>
             {
-                h.Username(rabbitMqConfig["Username"] ?? "guest");
-                h.Password(rabbitMqConfig["Password"] ?? "guest");
+                h.Heartbeat(TimeSpan.FromSeconds(60));
             });
 
             // Configure retry policy with exponential backoff (1s, 2s, 4s, 8s, 16s)

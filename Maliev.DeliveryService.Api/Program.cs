@@ -19,9 +19,11 @@ builder.Services.AddDbContext<DeliveryDbContext>(options =>
 if (!builder.Environment.IsEnvironment("Testing"))
 {
     builder.Services.AddMassTransit(x =>
-    {
-        // Register event consumers
-        x.AddConsumer<Maliev.DeliveryService.Api.Consumers.OrderCompletedEventConsumer>();
+        {
+            x.DisableUsageTelemetry();
+
+            // Register event consumers
+            x.AddConsumer<Maliev.DeliveryService.Api.Consumers.OrderCompletedEventConsumer>();
 
         x.UsingRabbitMq((context, cfg) =>
         {
@@ -46,6 +48,7 @@ else
 {
     builder.Services.AddMassTransit(x =>
     {
+        x.DisableUsageTelemetry();
         x.UsingInMemory((context, cfg) =>
         {
             cfg.ConfigureEndpoints(context);

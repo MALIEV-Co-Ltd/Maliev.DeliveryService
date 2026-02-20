@@ -48,8 +48,9 @@ public class DeliveryServiceTestFixture : WebApplicationFactory<Program>, IAsync
                 ["OrderService:BaseUrl"] = "http://localhost:5001"
             });
         });
-        
-        builder.ConfigureServices(services => {
+
+        builder.ConfigureServices(services =>
+        {
             // Bypass authentication
             services.AddAuthentication(options =>
             {

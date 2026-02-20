@@ -37,11 +37,11 @@ public class OrderCompletedEventConsumerTests
     {
         // Arrange
         var harness = new InMemoryTestHarness();
-        
+
         // Setup service mock
         _mockDeliveryService.Setup(x => x.CreateAsync(It.IsAny<CreateDeliveryNoteRequest>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new DeliveryNoteResponse 
-            { 
+            .ReturnsAsync(new DeliveryNoteResponse
+            {
                 DeliveryNoteId = "DN-2025-001",
                 Status = DeliveryStatus.Pending.ToString()
             });
@@ -64,13 +64,13 @@ public class OrderCompletedEventConsumerTests
                 CustomerName = "Test Customer",
                 Items = new List<OrderLineItem>
                 {
-                    new() 
-                    { 
-                        ProductCode = "P1", 
-                        ProductName = "Product 1", 
+                    new()
+                    {
+                        ProductCode = "P1",
+                        ProductName = "Product 1",
                         QuantityOrdered = 10,
                         QuantityManufactured = 5,
-                        UnitOfMeasure = "pcs" 
+                        UnitOfMeasure = "pcs"
                     }
                 }
             };
@@ -80,13 +80,13 @@ public class OrderCompletedEventConsumerTests
 
             // Assert
             Assert.True(await harness.Consumed.SelectAsync<OrderCompletedEvent>().Any());
-            
+
             _mockDeliveryService.Verify(x => x.CreateAsync(
-                It.Is<CreateDeliveryNoteRequest>(req => 
-                    req.OrderId == "ORD-001" && 
+                It.Is<CreateDeliveryNoteRequest>(req =>
+                    req.OrderId == "ORD-001" &&
                     req.Items.Count == 1 &&
                     req.Items[0].QuantityDelivered == 5), // Expects manufactured quantity
-                "system-auto", 
+                "system-auto",
                 It.IsAny<CancellationToken>()), Times.Once);
         }
         finally
@@ -100,10 +100,10 @@ public class OrderCompletedEventConsumerTests
     {
         // Arrange
         var orderId = "ORD-DUPLICATE";
-        
+
         // Seed existing delivery note
-        _dbContext.DeliveryNotes.Add(new DeliveryNote 
-        { 
+        _dbContext.DeliveryNotes.Add(new DeliveryNote
+        {
             DeliveryNoteId = "DN-EXISTING",
             OrderId = orderId,
             CustomerId = Guid.NewGuid(),
@@ -118,7 +118,7 @@ public class OrderCompletedEventConsumerTests
             _mockDeliveryService.Object,
             _dbContext,
             _mockLogger.Object);
-            
+
         harness.Consumer(() => consumer);
 
         await harness.Start();
@@ -137,11 +137,11 @@ public class OrderCompletedEventConsumerTests
 
             // Assert
             Assert.True(await harness.Consumed.SelectAsync<OrderCompletedEvent>().Any());
-            
+
             // Verify CreateAsync was NEVER called
             _mockDeliveryService.Verify(x => x.CreateAsync(
-                It.IsAny<CreateDeliveryNoteRequest>(), 
-                It.IsAny<string>(), 
+                It.IsAny<CreateDeliveryNoteRequest>(),
+                It.IsAny<string>(),
                 It.IsAny<CancellationToken>()), Times.Never);
         }
         finally

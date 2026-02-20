@@ -74,7 +74,7 @@ builder.Services.AddScoped<IDeliveryNoteService, DeliveryNoteService>();
 // Register Google Cloud Storage
 if (!builder.Environment.IsEnvironment("Testing"))
 {
-    try 
+    try
     {
         builder.Services.AddSingleton(Google.Cloud.Storage.V1.StorageClient.Create());
         builder.Services.AddScoped<IFileStorageService, GoogleCloudStorageService>();

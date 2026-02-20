@@ -15,46 +15,20 @@ builder.AddServiceDefaults();
 builder.Services.AddDbContext<DeliveryDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DeliveryDb")));
 
-// Configure MassTransit with RabbitMQ
-if (!builder.Environment.IsEnvironment("Testing"))
-{
-    builder.Services.AddMassTransit(x =>
-        {
-            x.DisableUsageTelemetry();
-
-            // Register event consumers
-            x.AddConsumer<Maliev.DeliveryService.Api.Consumers.OrderCompletedEventConsumer>();
-
-        x.UsingRabbitMq((context, cfg) =>
-        {
-            var rabbitmqConnectionString = builder.Configuration.GetConnectionString("rabbitmq")
-                ?? throw new InvalidOperationException("RabbitMQ connection string 'rabbitmq' not configured.");
-            cfg.Host(rabbitmqConnectionString, h =>
-            {
-                h.Heartbeat(TimeSpan.FromSeconds(60));
-            });
-
-            // Configure retry policy with exponential backoff (1s, 2s, 4s, 8s, 16s)
-            cfg.UseMessageRetry(r =>
-            {
-                r.Exponential(5, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(16), TimeSpan.FromSeconds(1));
-            });
-
-            cfg.ConfigureEndpoints(context);
-        });
-    });
-}
-else
-{
-    builder.Services.AddMassTransit(x =>
+// Configure MassTransit with RabbitMQ using shared ServiceDefaults config
+builder.AddMassTransitWithRabbitMq(
+    configure: x =>
     {
-        x.DisableUsageTelemetry();
-        x.UsingInMemory((context, cfg) =>
+        x.AddConsumer<Maliev.DeliveryService.Api.Consumers.OrderCompletedEventConsumer>();
+    },
+    configureRabbitMq: (context, cfg) =>
+    {
+        // Configure retry policy with exponential backoff (1s, 2s, 4s, 8s, 16s)
+        cfg.UseMessageRetry(r =>
         {
-            cfg.ConfigureEndpoints(context);
+            r.Exponential(5, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(16), TimeSpan.FromSeconds(1));
         });
     });
-}
 
 // Configure Redis
 if (!builder.Environment.IsEnvironment("Testing"))
@@ -128,7 +102,6 @@ if (!builder.Environment.IsEnvironment("Testing"))
     builder.Services.AddHealthChecks()
         .AddNpgSql(builder.Configuration.GetConnectionString("DeliveryDb") ?? throw new InvalidOperationException("DeliveryDb connection string not configured"))
         .AddRedis(builder.Configuration.GetSection("Redis")["ConnectionString"] ?? throw new InvalidOperationException("Redis connection string not configured"))
-        .AddRabbitMQ()
         .AddCheck<Maliev.DeliveryService.Api.HealthChecks.DatabaseMigrationHealthCheck>(
             "database_migrations",
             tags: new[] { "ready" });

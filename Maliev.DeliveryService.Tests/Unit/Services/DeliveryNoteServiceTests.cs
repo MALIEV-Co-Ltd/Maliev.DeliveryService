@@ -343,6 +343,89 @@ public class DeliveryNoteServiceTests : IDisposable
         Assert.Contains("Only Pending delivery notes can be deleted", exception.Message);
     }
 
+    private async Task<string> SeedDeliveryNoteAsync(DeliveryStatus status = DeliveryStatus.Pending)
+    {
+        var id = $"DN-TEST-{Guid.NewGuid():N}";
+        _context.DeliveryNotes.Add(new DeliveryNote
+        {
+            DeliveryNoteId = id,
+            OrderId = "ORD-TEST-001",
+            CustomerId = Guid.NewGuid(),
+            DeliveryDate = DateTime.UtcNow.AddDays(1),
+            Status = status,
+            CreatedAt = DateTime.UtcNow,
+            CreatedBy = "seed-user"
+        });
+        await _context.SaveChangesAsync();
+        return id;
+    }
+
+    [Fact]
+    public async Task ScanBarcodeAsync_PendingNote_SetsTrackingAndTransitionsToInTransit()
+    {
+        // Arrange
+        var deliveryNoteId = await SeedDeliveryNoteAsync(DeliveryStatus.Pending);
+        _fakePublishEndpoint.Clear();
+
+        // Act
+        var result = await _service.ScanBarcodeAsync(deliveryNoteId, "TH123456789XY", "user-42");
+
+        // Assert
+        Assert.Equal(deliveryNoteId, result.DeliveryNoteId);
+        Assert.Equal("TH123456789XY", result.TrackingNumber);
+        Assert.Equal("Flash Express", result.CarrierName);
+        Assert.Equal("InTransit", result.Status);
+
+        var entity = await _context.DeliveryNotes.FindAsync(deliveryNoteId);
+        Assert.NotNull(entity);
+        Assert.Equal(DeliveryStatus.InTransit, entity!.Status);
+        Assert.Equal("TH123456789XY", entity.TrackingNumber);
+        Assert.Equal("Flash Express", entity.CarrierName);
+        Assert.Equal("user-42", entity.UpdatedBy);
+        Assert.NotNull(entity.UpdatedAt);
+
+        var events = _fakePublishEndpoint
+            .GetPublishedMessages<Maliev.MessagingContracts.Contracts.Delivery.DeliveryStatusChangedEvent>();
+        Assert.Single(events);
+        Assert.Equal("Pending", events[0].PreviousStatus);
+        Assert.Equal("InTransit", events[0].NewStatus);
+        Assert.Equal("user-42", events[0].ChangedBy);
+    }
+
+    [Fact]
+    public async Task ScanBarcodeAsync_InTransitNote_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var deliveryNoteId = await SeedDeliveryNoteAsync(DeliveryStatus.InTransit);
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _service.ScanBarcodeAsync(deliveryNoteId, "TH123456789XY", "user-42"));
+
+        Assert.Equal("This delivery note has already been dispatched.", ex.Message);
+    }
+
+    [Fact]
+    public async Task ScanBarcodeAsync_EmptyBarcode_ThrowsArgumentException()
+    {
+        // Arrange
+        var deliveryNoteId = await SeedDeliveryNoteAsync(DeliveryStatus.Pending);
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ArgumentException>(
+            () => _service.ScanBarcodeAsync(deliveryNoteId, "   ", "user-42"));
+
+        Assert.Contains("must not be empty", ex.Message);
+    }
+
+    [Fact]
+    public async Task ScanBarcodeAsync_NonExistentNote_ThrowsKeyNotFoundException()
+    {
+        // Act & Assert
+        await Assert.ThrowsAsync<KeyNotFoundException>(
+            () => _service.ScanBarcodeAsync("DN-DOES-NOT-EXIST", "TH123456789XY", "user-42"));
+    }
+
     public void Dispose()
     {
         _context.Database.EnsureDeleted();

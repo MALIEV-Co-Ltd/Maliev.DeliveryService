@@ -599,6 +599,70 @@ public class DeliveryNoteService : IDeliveryNoteService
         }
     }
 
+    public async Task<BarcodeScanResponse> ScanBarcodeAsync(
+        string deliveryNoteId,
+        string barcodeValue,
+        string scannedBy,
+        CancellationToken ct = default)
+    {
+        var trimmedBarcode = barcodeValue?.Trim() ?? string.Empty;
+
+        if (string.IsNullOrEmpty(trimmedBarcode))
+            throw new ArgumentException("Barcode value must not be empty.");
+
+        if (trimmedBarcode.Length > 100)
+            throw new ArgumentException("Barcode value must not exceed 100 characters.");
+
+        var deliveryNote = await _context.DeliveryNotes
+            .FirstOrDefaultAsync(dn => dn.DeliveryNoteId == deliveryNoteId, ct);
+
+        if (deliveryNote == null)
+            throw new KeyNotFoundException($"Delivery note {deliveryNoteId} not found.");
+
+        if (deliveryNote.Status is DeliveryStatus.InTransit
+                                or DeliveryStatus.Delivered
+                                or DeliveryStatus.PartiallyDelivered
+                                or DeliveryStatus.Cancelled)
+        {
+            throw new InvalidOperationException("This delivery note has already been dispatched.");
+        }
+
+        var previousStatus = deliveryNote.Status;
+
+        deliveryNote.TrackingNumber = trimmedBarcode;
+        deliveryNote.CarrierName = "Flash Express";
+        deliveryNote.Status = DeliveryStatus.InTransit;
+        deliveryNote.UpdatedAt = DateTime.UtcNow;
+        deliveryNote.UpdatedBy = scannedBy;
+
+        await _context.SaveChangesAsync(ct);
+
+        _logger.LogInformation(
+            "Barcode scanned for delivery note {DeliveryNoteId}: TrackingNumber={TrackingNumber}, ScannedBy={ScannedBy}",
+            deliveryNoteId, trimmedBarcode, scannedBy);
+
+        var cacheKey = $"delivery-note:{deliveryNoteId}";
+        await _cache.RemoveAsync(cacheKey, ct);
+
+        await PublishEventAsync(new DeliveryStatusChangedEvent
+        {
+            DeliveryNoteId = deliveryNote.DeliveryNoteId,
+            OrderId = deliveryNote.OrderId,
+            PreviousStatus = previousStatus.ToString(),
+            NewStatus = DeliveryStatus.InTransit.ToString(),
+            ChangedAt = deliveryNote.UpdatedAt ?? DateTime.UtcNow,
+            ChangedBy = scannedBy
+        }, ct);
+
+        return new BarcodeScanResponse
+        {
+            DeliveryNoteId = deliveryNote.DeliveryNoteId,
+            TrackingNumber = deliveryNote.TrackingNumber,
+            CarrierName = deliveryNote.CarrierName!,
+            Status = deliveryNote.Status.ToString()
+        };
+    }
+
     private async Task PublishEventAsync<T>(T eventMessage, CancellationToken ct) where T : class
     {
         var eventType = typeof(T).Name;

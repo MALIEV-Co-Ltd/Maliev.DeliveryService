@@ -1,0 +1,99 @@
+openapi: "3.0.3"
+info:
+  title: Maliev Delivery Service — Barcode Scan
+  version: "1.0"
+
+paths:
+  /delivery/v1/delivery-notes/{deliveryNoteId}/barcode-scan:
+    post:
+      summary: Record tracking number by scanning a Flash Express barcode
+      description: >
+        Accepts a barcode value scanned from a Flash Express shipping label,
+        records it as the tracking number on the delivery note, sets the carrier
+        to "Flash Express", and transitions the status to InTransit.
+        Publishing the DeliveryStatusChangedEvent is best-effort — if the broker
+        is unavailable the operation still succeeds.
+      operationId: scanBarcode
+      tags:
+        - DeliveryNotes
+      parameters:
+        - name: deliveryNoteId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: DN-2026-000001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BarcodeScanRequest"
+            example:
+              barcodeValue: TH123456789XY
+      responses:
+        "200":
+          description: Barcode scanned successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BarcodeScanResponse"
+              example:
+                deliveryNoteId: DN-2026-000001
+                trackingNumber: TH123456789XY
+                carrierName: Flash Express
+                status: InTransit
+        "400":
+          description: Validation failure — barcode is empty or exceeds 100 characters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Delivery note not found
+        "409":
+          description: Delivery note has already been dispatched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: This delivery note has already been dispatched.
+
+components:
+  schemas:
+    BarcodeScanRequest:
+      type: object
+      required:
+        - barcodeValue
+      properties:
+        barcodeValue:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: >
+            The value encoded in the Flash Express shipping label barcode.
+            Leading and trailing whitespace is trimmed before storage.
+          example: TH123456789XY
+
+    BarcodeScanResponse:
+      type: object
+      properties:
+        deliveryNoteId:
+          type: string
+          example: DN-2026-000001
+        trackingNumber:
+          type: string
+          example: TH123456789XY
+        carrierName:
+          type: string
+          example: Flash Express
+        status:
+          type: string
+          example: InTransit
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string

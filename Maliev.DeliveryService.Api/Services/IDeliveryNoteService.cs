@@ -12,4 +12,5 @@ public interface IDeliveryNoteService
     Task<List<DeliveryNoteFileResponse>> GetFilesAsync(string deliveryNoteId, CancellationToken ct = default);
     Task<DeliveryNoteResponse> UpdateAsync(string deliveryNoteId, UpdateDeliveryNoteRequest request, string updatedBy, CancellationToken ct = default);
     Task SoftDeleteAsync(string deliveryNoteId, string deletedBy, CancellationToken ct = default);
+    Task<BarcodeScanResponse> ScanBarcodeAsync(string deliveryNoteId, string barcodeValue, string scannedBy, CancellationToken ct = default);
 }

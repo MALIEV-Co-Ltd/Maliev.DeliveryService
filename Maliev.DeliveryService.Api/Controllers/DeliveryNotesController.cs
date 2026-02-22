@@ -270,6 +270,45 @@ public class DeliveryNotesController : ControllerBase
     }
 
     /// <summary>
+    /// Record the tracking number by scanning a Flash Express shipping label barcode
+    /// </summary>
+    [HttpPost("{deliveryNoteId}/barcode-scan")]
+    [ProducesResponseType(typeof(BarcodeScanResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<BarcodeScanResponse>> ScanBarcode(
+        [FromRoute] string deliveryNoteId,
+        [FromBody] BarcodeScanRequest request,
+        CancellationToken ct)
+    {
+        try
+        {
+            var userId = User.GetUserId();
+            var result = await _deliveryNoteService.ScanBarcodeAsync(
+                deliveryNoteId, request.BarcodeValue, userId, ct);
+
+            return Ok(result);
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex,
+                "Barcode scan rejected for delivery note {DeliveryNoteId}: already dispatched", deliveryNoteId);
+            return Conflict(new { error = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex,
+                "Invalid barcode scan request for delivery note {DeliveryNoteId}", deliveryNoteId);
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// Soft delete a delivery note (Pending status only)
     /// </summary>
     [HttpDelete("{id}")]

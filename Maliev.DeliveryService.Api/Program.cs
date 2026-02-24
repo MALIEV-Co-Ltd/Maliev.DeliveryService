@@ -1,133 +1,146 @@
-using Asp.Versioning;
 using Maliev.DeliveryService.Api.Clients;
 using Maliev.DeliveryService.Api.Services;
 using Maliev.DeliveryService.Data;
-using MassTransit;
-using Microsoft.EntityFrameworkCore;
-using Scalar.AspNetCore;
+using Maliev.Aspire.ServiceDefaults;
 
-var builder = WebApplication.CreateBuilder(args);
+// Initialize bootstrap logging
+using var loggerFactory = LoggerFactory.Create(logBuilder => logBuilder.AddConsole());
+var bootstrapLogger = loggerFactory.CreateLogger("Program");
 
-// Add Aspire ServiceDefaults (OpenTelemetry, Health Checks, Service Discovery)
-builder.AddServiceDefaults();
+try
+{
+    Program.Log.StartingHost(bootstrapLogger, "Delivery Service");
 
-// Configure DbContext with PostgreSQL
-builder.Services.AddDbContext<DeliveryDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DeliveryDb")));
+    var builder = WebApplication.CreateBuilder(args);
 
-// Configure MassTransit with RabbitMQ using shared ServiceDefaults config
-builder.AddMassTransitWithRabbitMq(
-    configure: x =>
+    // --- Secrets & Configuration ---
+    builder.AddGoogleSecretManagerVolume(); // Load secrets from /mnt/secrets if available
+
+    // --- Infrastructure & Observability ---
+    builder.AddServiceDefaults(); // OpenTelemetry, health checks, resilience
+    builder.AddStandardMiddleware(options =>
     {
+        options.EnableRequestLogging = true;
+    });
+    builder.AddServiceMeters("delivery-meter"); // Register service meters for OpenTelemetry business metrics
+
+    builder.Services.AddHttpContextAccessor();
+
+    // Database Context with ServiceDefaults
+    builder.AddPostgresDbContext<DeliveryDbContext>(
+        connectionName: "DeliveryDb");
+
+    builder.AddStandardCache("delivery:"); // Redis + in-memory fallback, memory-optimized
+    
+    builder.AddMassTransitWithRabbitMq(x =>
+    {
+        // Register all event consumers
         x.AddConsumer<Maliev.DeliveryService.Api.Consumers.OrderCompletedEventConsumer>();
-    },
-    configureRabbitMq: (context, cfg) =>
+    }); // RabbitMQ message bus (non-blocking startup)
+
+    // --- API Configuration ---
+    builder.AddStandardCors(); // CORS with fail-fast validation
+    builder.AddDefaultApiVersioning(); // API versioning with URL segment reader
+
+    // JWT Authentication
+    builder.AddJwtAuthentication();
+
+    // Add OpenAPI
+    if (!builder.Environment.IsProduction())
     {
-        // Configure retry policy with exponential backoff (1s, 2s, 4s, 8s, 16s)
-        cfg.UseMessageRetry(r =>
+        builder.AddStandardOpenApi(
+            title: "MALIEV Delivery Service API",
+            description: "Delivery and logistics service. Handles delivery notes, shipping tracking, carrier integration, and proof of delivery.");
+    }
+
+    builder.Services.AddControllers();
+
+    // Register application services
+    builder.Services.AddScoped<DeliveryNoteIdGenerator>();
+    builder.Services.AddScoped<IDeliveryNoteAuthorizationService, DeliveryNoteAuthorizationService>();
+    builder.Services.AddScoped<IDeliveryNoteService, DeliveryNoteService>();
+
+    // Register Google Cloud Storage
+    if (!builder.Environment.IsEnvironment("Testing"))
+    {
+        try
         {
-            r.Exponential(5, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(16), TimeSpan.FromSeconds(1));
-        });
-    });
-
-// Configure Redis
-if (!builder.Environment.IsEnvironment("Testing"))
-{
-    builder.Services.AddStackExchangeRedisCache(options =>
-    {
-        options.Configuration = builder.Configuration.GetSection("Redis")["ConnectionString"];
-    });
-}
-else
-{
-    builder.Services.AddDistributedMemoryCache();
-}
-
-// Register Services
-builder.Services.AddScoped<DeliveryNoteIdGenerator>();
-builder.Services.AddScoped<IDeliveryNoteAuthorizationService, DeliveryNoteAuthorizationService>();
-builder.Services.AddScoped<IDeliveryNoteService, DeliveryNoteService>();
-
-// Register Google Cloud Storage
-if (!builder.Environment.IsEnvironment("Testing"))
-{
-    try
-    {
-        builder.Services.AddSingleton(Google.Cloud.Storage.V1.StorageClient.Create());
-        builder.Services.AddScoped<IFileStorageService, GoogleCloudStorageService>();
+            builder.Services.AddSingleton(Google.Cloud.Storage.V1.StorageClient.Create());
+            builder.Services.AddScoped<IFileStorageService, GoogleCloudStorageService>();
+        }
+        catch (Exception ex)
+        {
+            bootstrapLogger.LogWarning(ex, "Google Cloud Storage client could not be initialized");
+        }
     }
-    catch (Exception ex)
+
+    // Register HTTP Clients with Aspire resilience
+    builder.Services.AddHttpClient<IOrderServiceClient, OrderServiceClient>(client =>
     {
-        // Log warning but don't crash startup - allow app to run with limited functionality
-        Console.WriteLine($"WARNING: Google Cloud Storage client could not be initialized: {ex.Message}");
+        // Base address will be resolved by service discovery if "order-service" is used
+        client.BaseAddress = new Uri(builder.Configuration["OrderService:BaseUrl"] ?? "http://order-service");
+    });
+
+    // Authorization Infrastructure
+    builder.Services.AddPermissionAuthorization();
+
+    // IAM Registration
+    builder.AddIAMServiceClient("delivery");
+
+    var app = builder.Build();
+    var logger = app.Services.GetRequiredService<ILogger<Program>>();
+
+    // --- Database Migrations ---
+    await app.MigrateDatabaseAsync<DeliveryDbContext>();
+
+    // Middleware Pipeline
+    app.UseStandardMiddleware();
+
+    if (!app.Environment.IsDevelopment())
+    {
+        app.UseHttpsRedirection();
+    }
+    app.UseCors();
+
+    app.UseAuthentication();
+    app.UseAuthorization();
+
+    // Map endpoints after middleware
+    app.MapControllers();
+
+    // Map Aspire default endpoints (/health, /alive, /metrics)
+    app.MapDefaultEndpoints(servicePrefix: "delivery");
+
+    // Map OpenAPI and Scalar documentation (dev/staging only)
+    app.MapApiDocumentation(servicePrefix: "delivery");
+
+    Program.Log.ServiceStarted(logger, "Delivery Service");
+    await app.RunAsync();
+}
+catch (Exception ex)
+{
+    Program.Log.HostTerminated(bootstrapLogger, ex, "Delivery Service");
+    throw;
+}
+finally
+{
+    loggerFactory.Dispose();
+}
+
+/// <summary>
+/// Main program class for the application
+/// </summary>
+public partial class Program
+{
+    internal static partial class Log
+    {
+        [LoggerMessage(Level = LogLevel.Information, Message = "Starting {ServiceName} host")]
+        public static partial void StartingHost(ILogger logger, string serviceName);
+
+        [LoggerMessage(Level = LogLevel.Critical, Message = "{ServiceName} host terminated unexpectedly during startup")]
+        public static partial void HostTerminated(ILogger logger, Exception ex, string serviceName);
+
+        [LoggerMessage(Level = LogLevel.Information, Message = "{ServiceName} started successfully")]
+        public static partial void ServiceStarted(ILogger logger, string serviceName);
     }
 }
-else
-{
-    // File storage not registered in testing environment - tests should mock IFileStorageService via WebApplicationFactory
-}
-
-// Register HTTP Clients with Aspire resilience
-builder.Services.AddHttpClient<IOrderServiceClient, OrderServiceClient>(client =>
-{
-    client.BaseAddress = new Uri(builder.Configuration["OrderService:BaseUrl"] ?? "http://localhost:5001");
-    client.Timeout = TimeSpan.FromSeconds(10);
-}).AddStandardResilienceHandler(); // Aspire built-in exponential backoff retry
-
-// Add Controllers
-builder.Services.AddControllers();
-
-// Configure API Versioning
-builder.Services.AddApiVersioning(options =>
-{
-    options.DefaultApiVersion = new ApiVersion(1, 0);
-    options.AssumeDefaultVersionWhenUnspecified = true;
-    options.ReportApiVersions = true;
-    options.ApiVersionReader = new UrlSegmentApiVersionReader();
-}).AddApiExplorer(options =>
-{
-    options.GroupNameFormat = "'v'V";
-    options.SubstituteApiVersionInUrl = true;
-});
-
-// Configure OpenAPI
-if (!builder.Environment.IsEnvironment("Testing"))
-{
-    builder.Services.AddOpenApi();
-}
-
-// Configure Health Checks
-if (!builder.Environment.IsEnvironment("Testing"))
-{
-    builder.Services.AddHealthChecks()
-        .AddNpgSql(builder.Configuration.GetConnectionString("DeliveryDb") ?? throw new InvalidOperationException("DeliveryDb connection string not configured"))
-        .AddRedis(builder.Configuration.GetSection("Redis")["ConnectionString"] ?? throw new InvalidOperationException("Redis connection string not configured"))
-        .AddCheck<Maliev.DeliveryService.Api.HealthChecks.DatabaseMigrationHealthCheck>(
-            "database_migrations",
-            tags: new[] { "ready" });
-}
-
-var app = builder.Build();
-
-// Configure the HTTP request pipeline
-app.MapDefaultEndpoints("delivery"); // Aspire health checks and diagnostics
-
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
-    app.MapScalarApiReference(options =>
-    {
-        options.WithTitle("Delivery Service API")
-               .WithTheme(ScalarTheme.Mars)
-               .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
-    });
-}
-
-app.UseHttpsRedirection();
-app.UseAuthorization();
-app.MapControllers();
-
-app.Run();
-
-// Make Program class accessible for testing
-public partial class Program { }

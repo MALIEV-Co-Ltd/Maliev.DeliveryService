@@ -3,6 +3,7 @@ using Maliev.DeliveryService.Api.DTOs;
 using Maliev.DeliveryService.Data;
 using Maliev.DeliveryService.Data.Entities;
 using Maliev.MessagingContracts.Contracts.Delivery;
+using Maliev.MessagingContracts.Generated;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
@@ -82,17 +83,27 @@ public class DeliveryNoteService : IDeliveryNoteService
         await _cache.RemoveAsync(cacheKey, ct);
 
         // Publish DeliveryNoteCreatedEvent with graceful degradation
-        await PublishEventAsync(new DeliveryNoteCreatedEvent
-        {
-            DeliveryNoteId = deliveryNote.DeliveryNoteId,
-            OrderId = deliveryNote.OrderId,
-            PurchaseOrderId = deliveryNote.PurchaseOrderId,
-            CustomerId = deliveryNote.CustomerId,
-            DeliveryDate = deliveryNote.DeliveryDate,
-            ItemCount = deliveryNote.Items.Count,
-            CreatedAt = deliveryNote.CreatedAt,
-            CreatedBy = deliveryNote.CreatedBy
-        }, ct);
+        await PublishEventAsync(new DeliveryNoteCreatedEvent(
+            Guid.NewGuid(),
+            nameof(DeliveryNoteCreatedEvent),
+            MessageType.Event,
+            "1.0",
+            "DeliveryService",
+            Array.Empty<string>(),
+            Guid.NewGuid(),
+            null,
+            DateTimeOffset.UtcNow,
+            false,
+            new DeliveryNoteCreatedEventPayload(
+                deliveryNote.DeliveryNoteId,
+                deliveryNote.OrderId,
+                deliveryNote.PurchaseOrderId,
+                deliveryNote.CustomerId,
+                deliveryNote.DeliveryDate,
+                deliveryNote.Items.Count,
+                deliveryNote.CreatedAt,
+                deliveryNote.CreatedBy
+            )), ct);
 
         return deliveryNote.ToResponse();
     }
@@ -270,29 +281,49 @@ public class DeliveryNoteService : IDeliveryNoteService
         await _cache.RemoveAsync(cacheKey, ct);
 
         // Publish DeliveryStatusChangedEvent
-        await PublishEventAsync(new DeliveryStatusChangedEvent
-        {
-            DeliveryNoteId = deliveryNote.DeliveryNoteId,
-            OrderId = deliveryNote.OrderId,
-            PreviousStatus = oldStatus.ToString(),
-            NewStatus = newStatus.ToString(),
-            ActualDeliveryTime = deliveryNote.ActualDeliveryTime,
-            ReceivedByName = deliveryNote.ReceivedByName,
-            ChangedAt = deliveryNote.UpdatedAt ?? DateTime.UtcNow,
-            ChangedBy = updatedBy
-        }, ct);
+        await PublishEventAsync(new DeliveryStatusChangedEvent(
+            Guid.NewGuid(),
+            nameof(DeliveryStatusChangedEvent),
+            MessageType.Event,
+            "1.0",
+            "DeliveryService",
+            Array.Empty<string>(),
+            Guid.NewGuid(),
+            null,
+            DateTimeOffset.UtcNow,
+            false,
+            new DeliveryStatusChangedEventPayload(
+                deliveryNote.DeliveryNoteId,
+                deliveryNote.OrderId,
+                oldStatus.ToString(),
+                newStatus.ToString(),
+                deliveryNote.ActualDeliveryTime,
+                deliveryNote.ReceivedByName,
+                deliveryNote.UpdatedAt ?? DateTimeOffset.UtcNow,
+                updatedBy
+            )), ct);
 
         // Publish DeliveryCompletedEvent when fully delivered
         if (newStatus == DeliveryStatus.Delivered)
         {
-            await PublishEventAsync(new DeliveryCompletedEvent
-            {
-                DeliveryNoteId = deliveryNote.DeliveryNoteId,
-                OrderId = deliveryNote.OrderId,
-                PurchaseOrderId = deliveryNote.PurchaseOrderId,
-                CompletedAt = deliveryNote.ActualDeliveryTime ?? DateTime.UtcNow,
-                ReceivedByName = deliveryNote.ReceivedByName ?? string.Empty
-            }, ct);
+            await PublishEventAsync(new DeliveryCompletedEvent(
+                Guid.NewGuid(),
+                nameof(DeliveryCompletedEvent),
+                MessageType.Event,
+                "1.0",
+                "DeliveryService",
+                Array.Empty<string>(),
+                Guid.NewGuid(),
+                null,
+                DateTimeOffset.UtcNow,
+                false,
+                new DeliveryCompletedEventPayload(
+                    deliveryNote.DeliveryNoteId,
+                    deliveryNote.OrderId,
+                    deliveryNote.PurchaseOrderId,
+                    deliveryNote.ActualDeliveryTime ?? DateTimeOffset.UtcNow,
+                    deliveryNote.ReceivedByName ?? string.Empty
+                )), ct);
         }
 
         return deliveryNote.ToResponse();

@@ -3,6 +3,7 @@ using Maliev.DeliveryService.Api.DTOs;
 using Maliev.DeliveryService.Api.Extensions;
 using Maliev.DeliveryService.Api.Services;
 using Maliev.MessagingContracts.Contracts.Delivery;
+using Maliev.MessagingContracts.Generated;
 using MassTransit;
 using Microsoft.AspNetCore.Mvc;
 
@@ -145,12 +146,22 @@ public class DeliveryNotesController : ControllerBase
         try
         {
             var userId = User.GetUserId();
-            await _publishEndpoint.Publish(new DeliveryNotePdfRequestedEvent
-            {
-                DeliveryNoteId = id,
-                RequestedBy = userId,
-                RequestedAt = DateTime.UtcNow
-            }, ct);
+            await _publishEndpoint.Publish(new DeliveryNotePdfRequestedEvent(
+                Guid.NewGuid(),
+                nameof(DeliveryNotePdfRequestedEvent),
+                MessageType.Event,
+                "1.0",
+                "DeliveryService",
+                Array.Empty<string>(),
+                Guid.NewGuid(),
+                null,
+                DateTimeOffset.UtcNow,
+                false,
+                new DeliveryNotePdfRequestedEventPayload(
+                    id,
+                    userId,
+                    DateTimeOffset.UtcNow
+                )), ct);
 
             _logger.LogInformation(
                 "PDF generation requested for delivery note {DeliveryNoteId} by {UserId}",

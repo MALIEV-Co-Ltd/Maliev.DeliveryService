@@ -51,14 +51,21 @@ public class OrderCompletedEventConsumer : IConsumer<OrderCompletedEvent>
         try
         {
             // Auto-create delivery note draft in "Pending" status
-            // Note: OrderCompletedEvent doesn't include Items - creating minimal delivery note
             var deliveryNoteRequest = new CreateDeliveryNoteRequest
             {
                 OrderId = orderEvent.Payload.OrderId.ToString(),
-                CustomerId = Guid.Empty, // Will need to be fetched from OrderService if needed
-                CustomerName = "Pending", // Will need to be fetched from OrderService if needed
+                CustomerId = Guid.Empty, // Not in OrderCompletedEvent payload
+                CustomerName = "Pending", // Minimal, placeholder
                 DeliveryDate = DateTime.UtcNow.AddDays(1), // Schedule for next day by default
-                Items = new List<CreateDeliveryNoteItemRequest>() // Empty items - must be added manually
+                Items = orderEvent.Payload.Items.Select(item => new CreateDeliveryNoteItemRequest
+                {
+                    ProductCode = item.ProductCode,
+                    ProductName = item.ProductName,
+                    QuantityOrdered = (decimal)item.Quantity,
+                    QuantityManufactured = (decimal)item.Quantity, // Assume all manufactured for draft
+                    QuantityDelivered = (decimal)item.Quantity,    // Assume full delivery for draft
+                    UnitOfMeasure = "pcs" // Default UoM, contract doesn't have it for items
+                }).ToList()
             };
 
             var result = await _deliveryNoteService.CreateAsync(

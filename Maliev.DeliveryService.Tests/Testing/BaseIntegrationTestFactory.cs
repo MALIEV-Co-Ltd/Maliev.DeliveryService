@@ -336,7 +336,7 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
             try
             {
 #pragma warning disable EF1002
-                await context.Database.ExecuteSqlRawAsync($"TRUNCATE TABLE "{tableName}" RESTART IDENTITY CASCADE");
+                await context.Database.ExecuteSqlRawAsync($"TRUNCATE TABLE \"{tableName}\" RESTART IDENTITY CASCADE");
 #pragma warning restore EF1002
             }
             catch (Npgsql.PostgresException ex) when (ex.SqlState == "42P01")

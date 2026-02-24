@@ -10,8 +10,9 @@ using System.Text.Json;
 
 namespace Maliev.DeliveryService.Api.Services;
 
-/// <summary>Initializes or represents a public member.</summary>
-/// <summary>Initializes or represents a public member.</summary>
+/// <summary>
+/// Service for managing delivery notes.
+/// </summary>
 public class DeliveryNoteService : IDeliveryNoteService
 {
     private readonly DeliveryDbContext _context;
@@ -34,8 +35,9 @@ public class DeliveryNoteService : IDeliveryNoteService
         "application/pdf"
     };
 
-    /// <summary>Initializes or represents a public member.</summary>
-    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>
+    /// Initializes a new instance of the DeliveryNoteService class.
+    /// </summary>
     public DeliveryNoteService(
         DeliveryDbContext context,
         DeliveryNoteIdGenerator idGenerator,
@@ -56,8 +58,9 @@ public class DeliveryNoteService : IDeliveryNoteService
         _logger = logger;
     }
 
-    /// <summary>Initializes or represents a public member.</summary>
-    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>
+    /// Creates a new delivery note.
+    /// </summary>
     public async Task<DeliveryNoteResponse> CreateAsync(CreateDeliveryNoteRequest request, string createdBy, CancellationToken ct = default)
     {
         // Validate request
@@ -90,21 +93,25 @@ public class DeliveryNoteService : IDeliveryNoteService
         // Publish DeliveryNoteCreatedEvent with graceful degradation
         await PublishEventAsync(new DeliveryNoteCreatedEvent
         {
-            DeliveryNoteId = deliveryNote.DeliveryNoteId,
-            OrderId = deliveryNote.OrderId,
-            PurchaseOrderId = deliveryNote.PurchaseOrderId,
-            CustomerId = deliveryNote.CustomerId,
-            DeliveryDate = deliveryNote.DeliveryDate,
-            ItemCount = deliveryNote.Items.Count,
-            CreatedAt = deliveryNote.CreatedAt,
-            CreatedBy = deliveryNote.CreatedBy
+            Payload = new DeliveryNoteCreatedEventPayload
+            {
+                DeliveryNoteId = deliveryNote.DeliveryNoteId,
+                OrderId = deliveryNote.OrderId,
+                PurchaseOrderId = deliveryNote.PurchaseOrderId,
+                CustomerId = deliveryNote.CustomerId,
+                DeliveryDate = deliveryNote.DeliveryDate,
+                ItemCount = deliveryNote.Items.Count,
+                CreatedAt = deliveryNote.CreatedAt,
+                CreatedBy = deliveryNote.CreatedBy
+            }
         }, ct);
 
         return deliveryNote.ToResponse();
     }
 
-    /// <summary>Initializes or represents a public member.</summary>
-    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>
+    /// Gets a delivery note by its ID.
+    /// </summary>
     public async Task<DeliveryNoteResponse?> GetByIdAsync(string deliveryNoteId, CancellationToken ct = default)
     {
         // Try to get from cache first
@@ -119,7 +126,7 @@ public class DeliveryNoteService : IDeliveryNoteService
 
         var deliveryNote = await _context.DeliveryNotes
             .Include(dn => dn.Items)
-            .FirstOrDefaultAsync(dn => dn.DeliveryNoteId == deliveryNoteId, ct);
+            .FirstOrDefaultAsync(dn => dn.DeliveryNoteId == deliveryNoteId && !dn.IsDeleted, ct);
 
         if (deliveryNote == null)
         {
@@ -138,8 +145,9 @@ public class DeliveryNoteService : IDeliveryNoteService
         return response;
     }
 
-    /// <summary>Initializes or represents a public member.</summary>
-    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>
+    /// Searches for delivery notes based on the provided filter.
+    /// </summary>
     public async Task<PaginatedResponse<DeliveryNoteSummaryDto>> SearchAsync(
         DeliveryNoteFilterRequest filter,
         string principalId,
@@ -152,7 +160,7 @@ public class DeliveryNoteService : IDeliveryNoteService
         // Get authorized customer IDs for customer-scoped filtering
         var authorizedCustomerIds = await _authorizationService.GetAuthorizedCustomerIdsAsync(principalId, ct);
 
-        var query = _context.DeliveryNotes.AsQueryable();
+        var query = _context.DeliveryNotes.AsQueryable().Where(dn => !dn.IsDeleted);
 
         // Apply customer-scoped filter (if user has customer restrictions)
         if (authorizedCustomerIds.Any())
@@ -233,8 +241,9 @@ public class DeliveryNoteService : IDeliveryNoteService
         };
     }
 
-    /// <summary>Initializes or represents a public member.</summary>
-    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>
+    /// Updates the status of an existing delivery note.
+    /// </summary>
     public async Task<DeliveryNoteResponse> UpdateStatusAsync(
         string deliveryNoteId,
         UpdateDeliveryStatusRequest request,
@@ -243,7 +252,7 @@ public class DeliveryNoteService : IDeliveryNoteService
     {
         var deliveryNote = await _context.DeliveryNotes
             .Include(dn => dn.Items)
-            .FirstOrDefaultAsync(dn => dn.DeliveryNoteId == deliveryNoteId, ct);
+            .FirstOrDefaultAsync(dn => dn.DeliveryNoteId == deliveryNoteId && !dn.IsDeleted, ct);
 
         if (deliveryNote == null)
         {
@@ -284,14 +293,17 @@ public class DeliveryNoteService : IDeliveryNoteService
         // Publish DeliveryStatusChangedEvent
         await PublishEventAsync(new DeliveryStatusChangedEvent
         {
-            DeliveryNoteId = deliveryNote.DeliveryNoteId,
-            OrderId = deliveryNote.OrderId,
-            PreviousStatus = oldStatus.ToString(),
-            NewStatus = newStatus.ToString(),
-            ActualDeliveryTime = deliveryNote.ActualDeliveryTime,
-            ReceivedByName = deliveryNote.ReceivedByName,
-            ChangedAt = deliveryNote.UpdatedAt ?? DateTime.UtcNow,
-            ChangedBy = updatedBy
+            Payload = new DeliveryStatusChangedEventPayload
+            {
+                DeliveryNoteId = deliveryNote.DeliveryNoteId,
+                OrderId = deliveryNote.OrderId,
+                PreviousStatus = oldStatus.ToString(),
+                NewStatus = newStatus.ToString(),
+                ActualDeliveryTime = deliveryNote.ActualDeliveryTime,
+                ReceivedByName = deliveryNote.ReceivedByName,
+                ChangedAt = deliveryNote.UpdatedAt ?? DateTime.UtcNow,
+                ChangedBy = updatedBy
+            }
         }, ct);
 
         // Publish DeliveryCompletedEvent when fully delivered
@@ -299,19 +311,23 @@ public class DeliveryNoteService : IDeliveryNoteService
         {
             await PublishEventAsync(new DeliveryCompletedEvent
             {
-                DeliveryNoteId = deliveryNote.DeliveryNoteId,
-                OrderId = deliveryNote.OrderId,
-                PurchaseOrderId = deliveryNote.PurchaseOrderId,
-                CompletedAt = deliveryNote.ActualDeliveryTime ?? DateTime.UtcNow,
-                ReceivedByName = deliveryNote.ReceivedByName ?? string.Empty
+                Payload = new DeliveryCompletedEventPayload
+                {
+                    DeliveryNoteId = deliveryNote.DeliveryNoteId,
+                    OrderId = deliveryNote.OrderId,
+                    PurchaseOrderId = deliveryNote.PurchaseOrderId,
+                    CompletedAt = deliveryNote.ActualDeliveryTime ?? DateTime.UtcNow,
+                    ReceivedByName = deliveryNote.ReceivedByName ?? string.Empty
+                }
             }, ct);
         }
 
         return deliveryNote.ToResponse();
     }
 
-    /// <summary>Initializes or represents a public member.</summary>
-    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>
+    /// Adds a file to a delivery note.
+    /// </summary>
     public async Task<DeliveryNoteFileResponse> AddFileAsync(
         string deliveryNoteId,
         IFormFile file,
@@ -322,7 +338,7 @@ public class DeliveryNoteService : IDeliveryNoteService
     {
         // Validate delivery note exists
         var deliveryNote = await _context.DeliveryNotes
-            .FirstOrDefaultAsync(dn => dn.DeliveryNoteId == deliveryNoteId, ct);
+            .FirstOrDefaultAsync(dn => dn.DeliveryNoteId == deliveryNoteId && !dn.IsDeleted, ct);
 
         if (deliveryNote == null)
         {
@@ -378,8 +394,9 @@ public class DeliveryNoteService : IDeliveryNoteService
         }
     }
 
-    /// <summary>Initializes or represents a public member.</summary>
-    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>
+    /// Retrieves all files associated with a delivery note.
+    /// </summary>
     public async Task<List<DeliveryNoteFileResponse>> GetFilesAsync(
         string deliveryNoteId,
         CancellationToken ct = default)
@@ -392,8 +409,9 @@ public class DeliveryNoteService : IDeliveryNoteService
         return files.Select(f => f.ToResponse()).ToList();
     }
 
-    /// <summary>Initializes or represents a public member.</summary>
-    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>
+    /// Updates an existing delivery note.
+    /// </summary>
     public async Task<DeliveryNoteResponse> UpdateAsync(
         string deliveryNoteId,
         UpdateDeliveryNoteRequest request,
@@ -409,7 +427,7 @@ public class DeliveryNoteService : IDeliveryNoteService
             {
                 var deliveryNote = await _context.DeliveryNotes
                     .Include(dn => dn.Items)
-                    .FirstOrDefaultAsync(dn => dn.DeliveryNoteId == deliveryNoteId, ct);
+                    .FirstOrDefaultAsync(dn => dn.DeliveryNoteId == deliveryNoteId && !dn.IsDeleted, ct);
 
                 if (deliveryNote == null)
                 {
@@ -478,12 +496,13 @@ public class DeliveryNoteService : IDeliveryNoteService
         throw new InvalidOperationException("Update failed after maximum retries");
     }
 
-    /// <summary>Initializes or represents a public member.</summary>
-    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>
+    /// Soft deletes an existing delivery note.
+    /// </summary>
     public async Task SoftDeleteAsync(string deliveryNoteId, string deletedBy, CancellationToken ct = default)
     {
         var deliveryNote = await _context.DeliveryNotes
-            .FirstOrDefaultAsync(dn => dn.DeliveryNoteId == deliveryNoteId, ct);
+            .FirstOrDefaultAsync(dn => dn.DeliveryNoteId == deliveryNoteId && !dn.IsDeleted, ct);
 
         if (deliveryNote == null)
         {
@@ -619,8 +638,9 @@ public class DeliveryNoteService : IDeliveryNoteService
         }
     }
 
-    /// <summary>Initializes or represents a public member.</summary>
-    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>
+    /// Scans a barcode for a delivery note and marks it as InTransit.
+    /// </summary>
     public async Task<BarcodeScanResponse> ScanBarcodeAsync(
         string deliveryNoteId,
         string barcodeValue,
@@ -636,10 +656,15 @@ public class DeliveryNoteService : IDeliveryNoteService
             throw new ArgumentException("Barcode value must not exceed 100 characters.");
 
         var deliveryNote = await _context.DeliveryNotes
-            .FirstOrDefaultAsync(dn => dn.DeliveryNoteId == deliveryNoteId, ct);
+            .FirstOrDefaultAsync(dn => dn.DeliveryNoteId == deliveryNoteId && !dn.IsDeleted, ct);
 
         if (deliveryNote == null)
             throw new KeyNotFoundException($"Delivery note {deliveryNoteId} not found.");
+
+        if (!await _authorizationService.CanAccessCustomerAsync(scannedBy, deliveryNote.CustomerId, ct))
+        {
+            throw new UnauthorizedAccessException($"User {scannedBy} is not authorized to access delivery note {deliveryNoteId}.");
+        }
 
         if (deliveryNote.Status is DeliveryStatus.InTransit
                                 or DeliveryStatus.Delivered
@@ -657,7 +682,36 @@ public class DeliveryNoteService : IDeliveryNoteService
         deliveryNote.UpdatedAt = DateTime.UtcNow;
         deliveryNote.UpdatedBy = scannedBy;
 
-        await _context.SaveChangesAsync(ct);
+        const int maxRetries = 3;
+        int retryCount = 0;
+        while (retryCount < maxRetries)
+        {
+            try
+            {
+                await _context.SaveChangesAsync(ct);
+                break;
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                retryCount++;
+                if (retryCount >= maxRetries)
+                {
+                    _logger.LogWarning(ex, "Concurrency conflict during barcode scan for delivery note {DeliveryNoteId}", deliveryNoteId);
+                    throw new InvalidOperationException("The delivery note has been modified by another user. Please try again.", ex);
+                }
+                await Task.Delay(TimeSpan.FromMilliseconds(100 * retryCount), ct);
+                
+                // Refresh entity
+                await _context.Entry(deliveryNote).ReloadAsync(ct);
+                if (deliveryNote.Status != previousStatus)
+                {
+                    throw new InvalidOperationException("This delivery note has already been dispatched.");
+                }
+                deliveryNote.TrackingNumber = trimmedBarcode;
+                deliveryNote.Status = DeliveryStatus.InTransit;
+                deliveryNote.UpdatedAt = DateTime.UtcNow;
+            }
+        }
 
         _logger.LogInformation(
             "Barcode scanned for delivery note {DeliveryNoteId}: TrackingNumber={TrackingNumber}, ScannedBy={ScannedBy}",
@@ -668,12 +722,15 @@ public class DeliveryNoteService : IDeliveryNoteService
 
         await PublishEventAsync(new DeliveryStatusChangedEvent
         {
-            DeliveryNoteId = deliveryNote.DeliveryNoteId,
-            OrderId = deliveryNote.OrderId,
-            PreviousStatus = previousStatus.ToString(),
-            NewStatus = DeliveryStatus.InTransit.ToString(),
-            ChangedAt = deliveryNote.UpdatedAt ?? DateTime.UtcNow,
-            ChangedBy = scannedBy
+            Payload = new DeliveryStatusChangedEventPayload
+            {
+                DeliveryNoteId = deliveryNote.DeliveryNoteId,
+                OrderId = deliveryNote.OrderId,
+                PreviousStatus = previousStatus.ToString(),
+                NewStatus = DeliveryStatus.InTransit.ToString(),
+                ChangedAt = deliveryNote.UpdatedAt ?? DateTime.UtcNow,
+                ChangedBy = scannedBy
+            }
         }, ct);
 
         return new BarcodeScanResponse

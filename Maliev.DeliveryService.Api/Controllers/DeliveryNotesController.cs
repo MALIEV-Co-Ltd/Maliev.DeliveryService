@@ -156,9 +156,12 @@ public class DeliveryNotesController : ControllerBase
             var userId = User.GetUserId();
             await _publishEndpoint.Publish(new DeliveryNotePdfRequestedEvent
             {
-                DeliveryNoteId = id,
-                RequestedBy = userId,
-                RequestedAt = DateTime.UtcNow
+                Payload = new DeliveryNotePdfRequestedEventPayload
+                {
+                    DeliveryNoteId = id,
+                    RequestedBy = userId,
+                    RequestedAt = DateTime.UtcNow
+                }
             }, ct);
 
             _logger.LogInformation(

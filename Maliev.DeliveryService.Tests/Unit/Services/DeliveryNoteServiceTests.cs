@@ -181,8 +181,8 @@ public class DeliveryNoteServiceTests : IDisposable
         // Verify status changed event was published
         var statusChangedEvents = _fakePublishEndpoint.GetPublishedMessages<Maliev.MessagingContracts.Contracts.Delivery.DeliveryStatusChangedEvent>();
         Assert.Single(statusChangedEvents);
-        Assert.Equal("Pending", statusChangedEvents[0].PreviousStatus);
-        Assert.Equal("InTransit", statusChangedEvents[0].NewStatus);
+        Assert.Equal("Pending", statusChangedEvents[0].Payload.PreviousStatus);
+        Assert.Equal("InTransit", statusChangedEvents[0].Payload.NewStatus);
     }
 
     [Fact]
@@ -387,9 +387,9 @@ public class DeliveryNoteServiceTests : IDisposable
         var events = _fakePublishEndpoint
             .GetPublishedMessages<Maliev.MessagingContracts.Contracts.Delivery.DeliveryStatusChangedEvent>();
         Assert.Single(events);
-        Assert.Equal("Pending", events[0].PreviousStatus);
-        Assert.Equal("InTransit", events[0].NewStatus);
-        Assert.Equal("user-42", events[0].ChangedBy);
+        Assert.Equal("Pending", events[0].Payload.PreviousStatus);
+        Assert.Equal("InTransit", events[0].Payload.NewStatus);
+        Assert.Equal("user-42", events[0].Payload.ChangedBy);
     }
 
     [Fact]

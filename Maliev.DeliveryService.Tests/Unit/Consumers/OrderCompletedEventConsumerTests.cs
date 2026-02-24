@@ -1,6 +1,7 @@
 using Maliev.DeliveryService.Api.Consumers;
 using Maliev.DeliveryService.Api.DTOs;
-using Maliev.DeliveryService.Api.Events;
+using Maliev.MessagingContracts.Contracts.Orders;
+using Maliev.MessagingContracts.Generated;
 using Maliev.DeliveryService.Api.Services;
 using Maliev.DeliveryService.Data;
 using Maliev.DeliveryService.Data.Entities;
@@ -57,23 +58,36 @@ public class OrderCompletedEventConsumerTests
 
         try
         {
-            var orderEvent = new OrderCompletedEvent
-            {
-                OrderId = "ORD-001",
-                CustomerId = Guid.NewGuid(),
-                CustomerName = "Test Customer",
-                Items = new List<OrderLineItem>
+            var orderEvent = new OrderCompletedEvent(
+                MessageId: Guid.NewGuid(),
+                MessageName: nameof(OrderCompletedEvent),
+                MessageType: MessageType.Event,
+                MessageVersion: "1.0.0",
+                PublishedBy: "Test",
+                ConsumedBy: Array.Empty<string>(),
+                CorrelationId: Guid.NewGuid(),
+                CausationId: null,
+                OccurredAtUtc: DateTimeOffset.UtcNow,
+                IsPublic: false,
+                Payload: new OrderCompletedEventPayload
                 {
-                    new()
+                    OrderId = Guid.NewGuid(),
+                    CustomerId = Guid.NewGuid(),
+                    CustomerName = "Test Customer",
+                    Items = new List<OrderCompletedEventPayloadItemsItem>
                     {
-                        ProductCode = "P1",
-                        ProductName = "Product 1",
-                        QuantityOrdered = 10,
-                        QuantityManufactured = 5,
-                        UnitOfMeasure = "pcs"
-                    }
+                        new()
+                        {
+                            ProductCode = "P1",
+                            ProductName = "Product 1",
+                            QuantityOrdered = 10,
+                            QuantityManufactured = 5,
+                            UnitOfMeasure = "pcs"
+                        }
+                    },
+                    CompletedAt = DateTimeOffset.UtcNow
                 }
-            };
+            );
 
             // Act
             await harness.Bus.Publish(orderEvent);
@@ -83,7 +97,7 @@ public class OrderCompletedEventConsumerTests
 
             _mockDeliveryService.Verify(x => x.CreateAsync(
                 It.Is<CreateDeliveryNoteRequest>(req =>
-                    req.OrderId == "ORD-001" &&
+                    req.OrderId == orderEvent.Payload.OrderId.ToString() &&
                     req.Items.Count == 1 &&
                     req.Items[0].QuantityDelivered == 5), // Expects manufactured quantity
                 "system-auto",
@@ -99,13 +113,13 @@ public class OrderCompletedEventConsumerTests
     public async Task Consume_DuplicateOrder_ShouldSkipCreation()
     {
         // Arrange
-        var orderId = "ORD-DUPLICATE";
+        var orderId = Guid.NewGuid();
 
         // Seed existing delivery note
         _dbContext.DeliveryNotes.Add(new DeliveryNote
         {
             DeliveryNoteId = "DN-EXISTING",
-            OrderId = orderId,
+            OrderId = orderId.ToString(),
             CustomerId = Guid.NewGuid(),
             Status = DeliveryStatus.Pending,
             CreatedAt = DateTime.UtcNow,
@@ -125,12 +139,25 @@ public class OrderCompletedEventConsumerTests
 
         try
         {
-            var orderEvent = new OrderCompletedEvent
-            {
-                OrderId = orderId,
-                CustomerId = Guid.NewGuid(),
-                Items = new List<OrderLineItem>()
-            };
+            var orderEvent = new OrderCompletedEvent(
+                MessageId: Guid.NewGuid(),
+                MessageName: nameof(OrderCompletedEvent),
+                MessageType: MessageType.Event,
+                MessageVersion: "1.0.0",
+                PublishedBy: "Test",
+                ConsumedBy: Array.Empty<string>(),
+                CorrelationId: Guid.NewGuid(),
+                CausationId: null,
+                OccurredAtUtc: DateTimeOffset.UtcNow,
+                IsPublic: false,
+                Payload: new OrderCompletedEventPayload
+                {
+                    OrderId = orderId,
+                    CustomerId = Guid.NewGuid(),
+                    Items = new List<OrderCompletedEventPayloadItemsItem>(),
+                    CompletedAt = DateTimeOffset.UtcNow
+                }
+            );
 
             // Act
             await harness.Bus.Publish(orderEvent);

@@ -1,5 +1,5 @@
 using Maliev.DeliveryService.Api.DTOs;
-using Maliev.DeliveryService.Api.Events;
+using Maliev.MessagingContracts.Contracts.Orders;
 using Maliev.DeliveryService.Api.Services;
 using Maliev.DeliveryService.Data;
 using Maliev.MessagingContracts.Contracts.Delivery;
@@ -17,8 +17,9 @@ public class OrderCompletedEventConsumer : IConsumer<OrderCompletedEvent>
     private readonly DeliveryDbContext _context;
     private readonly ILogger<OrderCompletedEventConsumer> _logger;
 
-    /// <summary>Initializes or represents a public member.</summary>
-    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>
+    /// Initializes a new instance of the OrderCompletedEventConsumer class.
+    /// </summary>
     public OrderCompletedEventConsumer(
         IDeliveryNoteService deliveryNoteService,
         DeliveryDbContext context,
@@ -29,11 +30,12 @@ public class OrderCompletedEventConsumer : IConsumer<OrderCompletedEvent>
         _logger = logger;
     }
 
-    /// <summary>Initializes or represents a public member.</summary>
-    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>
+    /// Consumes the OrderCompletedEvent.
+    /// </summary>
     public async Task Consume(ConsumeContext<OrderCompletedEvent> context)
     {
-        var orderEvent = context.Message;
+        var orderEvent = context.Message.Payload;
 
         _logger.LogInformation(
             "Received OrderCompletedEvent: OrderId={OrderId}, CustomerId={CustomerId}, ItemCount={ItemCount}",
@@ -41,7 +43,7 @@ public class OrderCompletedEventConsumer : IConsumer<OrderCompletedEvent>
 
         // Idempotency check: prevent duplicate delivery notes for the same order
         var existingDeliveryNote = await _context.DeliveryNotes
-            .Where(dn => dn.OrderId == orderEvent.OrderId && !dn.IsDeleted)
+            .Where(dn => dn.OrderId == orderEvent.OrderId.ToString() && !dn.IsDeleted)
             .FirstOrDefaultAsync(context.CancellationToken);
 
         if (existingDeliveryNote != null)
@@ -57,18 +59,18 @@ public class OrderCompletedEventConsumer : IConsumer<OrderCompletedEvent>
             // Auto-create delivery note draft in "Pending" status
             var deliveryNoteRequest = new CreateDeliveryNoteRequest
             {
-                OrderId = orderEvent.OrderId,
+                OrderId = orderEvent.OrderId.ToString(),
                 CustomerId = orderEvent.CustomerId,
                 CustomerName = orderEvent.CustomerName,
                 DeliveryDate = DateTime.UtcNow.AddDays(1), // Schedule for next day by default
                 Items = orderEvent.Items.Select(item => new CreateDeliveryNoteItemRequest
                 {
-                    OrderId = orderEvent.OrderId,
+                    OrderId = orderEvent.OrderId.ToString(),
                     ProductCode = item.ProductCode,
                     ProductName = item.ProductName,
-                    QuantityOrdered = item.QuantityOrdered,
-                    QuantityManufactured = item.QuantityManufactured,
-                    QuantityDelivered = item.QuantityManufactured, // Default: deliver all manufactured
+                    QuantityOrdered = (decimal)item.QuantityOrdered,
+                    QuantityManufactured = (decimal)item.QuantityManufactured,
+                    QuantityDelivered = (decimal)item.QuantityManufactured, // Default: deliver all manufactured
                     UnitOfMeasure = item.UnitOfMeasure
                 }).ToList()
             };

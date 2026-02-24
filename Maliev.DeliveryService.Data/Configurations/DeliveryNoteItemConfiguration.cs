@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Maliev.DeliveryService.Data.Configurations;
 
-public class DeliveryNoteItemConfiguration : IEntityTypeConfiguration<DeliveryNoteItem>
+internal class DeliveryNoteItemConfiguration : IEntityTypeConfiguration<DeliveryNoteItem>
 {
     public void Configure(EntityTypeBuilder<DeliveryNoteItem> builder)
     {

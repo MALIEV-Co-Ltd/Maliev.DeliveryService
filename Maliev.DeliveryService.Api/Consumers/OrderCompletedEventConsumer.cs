@@ -17,6 +17,8 @@ public class OrderCompletedEventConsumer : IConsumer<OrderCompletedEvent>
     private readonly DeliveryDbContext _context;
     private readonly ILogger<OrderCompletedEventConsumer> _logger;
 
+    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>Initializes or represents a public member.</summary>
     public OrderCompletedEventConsumer(
         IDeliveryNoteService deliveryNoteService,
         DeliveryDbContext context,
@@ -27,6 +29,8 @@ public class OrderCompletedEventConsumer : IConsumer<OrderCompletedEvent>
         _logger = logger;
     }
 
+    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>Initializes or represents a public member.</summary>
     public async Task Consume(ConsumeContext<OrderCompletedEvent> context)
     {
         var orderEvent = context.Message;

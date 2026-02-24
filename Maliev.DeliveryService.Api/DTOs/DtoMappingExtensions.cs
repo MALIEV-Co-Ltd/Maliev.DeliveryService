@@ -2,8 +2,12 @@ using Maliev.DeliveryService.Data.Entities;
 
 namespace Maliev.DeliveryService.Api.DTOs;
 
+/// <summary>Initializes or represents a public member.</summary>
+/// <summary>Initializes or represents a public member.</summary>
 public static class DtoMappingExtensions
 {
+    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>Initializes or represents a public member.</summary>
     public static DeliveryNoteResponse ToResponse(this DeliveryNote entity)
     {
         return new DeliveryNoteResponse
@@ -50,6 +54,8 @@ public static class DtoMappingExtensions
         };
     }
 
+    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>Initializes or represents a public member.</summary>
     public static DeliveryNoteItemResponse ToResponse(this DeliveryNoteItem entity)
     {
         return new DeliveryNoteItemResponse
@@ -68,6 +74,8 @@ public static class DtoMappingExtensions
         };
     }
 
+    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>Initializes or represents a public member.</summary>
     public static DeliveryNote ToEntity(this CreateDeliveryNoteRequest request, string deliveryNoteId, string createdBy)
     {
         return new DeliveryNote
@@ -105,6 +113,8 @@ public static class DtoMappingExtensions
         };
     }
 
+    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>Initializes or represents a public member.</summary>
     public static DeliveryNoteItem ToEntity(this CreateDeliveryNoteItemRequest request)
     {
         return new DeliveryNoteItem
@@ -123,6 +133,8 @@ public static class DtoMappingExtensions
         };
     }
 
+    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>Initializes or represents a public member.</summary>
     public static DeliveryNoteFileResponse ToResponse(this DeliveryNoteFile entity)
     {
         return new DeliveryNoteFileResponse

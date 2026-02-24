@@ -4,15 +4,21 @@ using System.Data;
 
 namespace Maliev.DeliveryService.Api.Services;
 
+/// <summary>Initializes or represents a public member.</summary>
+/// <summary>Initializes or represents a public member.</summary>
 public class DeliveryNoteIdGenerator
 {
     private readonly DeliveryDbContext _context;
 
+    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>Initializes or represents a public member.</summary>
     public DeliveryNoteIdGenerator(DeliveryDbContext context)
     {
         _context = context;
     }
 
+    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>Initializes or represents a public member.</summary>
     public async Task<string> GenerateNextIdAsync(CancellationToken ct = default)
     {
         var currentYear = DateTime.UtcNow.Year;

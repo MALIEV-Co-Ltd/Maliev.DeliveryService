@@ -8,6 +8,9 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Maliev.DeliveryService.Api.Controllers;
 
+/// <summary>
+/// Controller for managing delivery notes, shipments, and barcode scanning.
+/// </summary>
 [ApiController]
 [ApiVersion("1.0")]
 [Route("delivery/v{version:apiVersion}/delivery-notes")]
@@ -17,6 +20,12 @@ public class DeliveryNotesController : ControllerBase
     private readonly IPublishEndpoint _publishEndpoint;
     private readonly ILogger<DeliveryNotesController> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DeliveryNotesController"/> class.
+    /// </summary>
+    /// <param name="deliveryNoteService">Service for delivery note operations.</param>
+    /// <param name="publishEndpoint">Endpoint for publishing messages to the service bus.</param>
+    /// <param name="logger">Logger instance.</param>
     public DeliveryNotesController(
         IDeliveryNoteService deliveryNoteService,
         IPublishEndpoint publishEndpoint,

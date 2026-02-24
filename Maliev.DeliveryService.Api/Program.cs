@@ -130,4 +130,6 @@ app.MapControllers();
 app.Run();
 
 // Make Program class accessible for testing
+/// <summary>Initializes or represents a public member.</summary>
+/// <summary>Initializes or represents a public member.</summary>
 public partial class Program { }

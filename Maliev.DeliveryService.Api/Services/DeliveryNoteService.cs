@@ -10,6 +10,8 @@ using System.Text.Json;
 
 namespace Maliev.DeliveryService.Api.Services;
 
+/// <summary>Initializes or represents a public member.</summary>
+/// <summary>Initializes or represents a public member.</summary>
 public class DeliveryNoteService : IDeliveryNoteService
 {
     private readonly DeliveryDbContext _context;
@@ -32,6 +34,8 @@ public class DeliveryNoteService : IDeliveryNoteService
         "application/pdf"
     };
 
+    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>Initializes or represents a public member.</summary>
     public DeliveryNoteService(
         DeliveryDbContext context,
         DeliveryNoteIdGenerator idGenerator,
@@ -52,6 +56,8 @@ public class DeliveryNoteService : IDeliveryNoteService
         _logger = logger;
     }
 
+    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>Initializes or represents a public member.</summary>
     public async Task<DeliveryNoteResponse> CreateAsync(CreateDeliveryNoteRequest request, string createdBy, CancellationToken ct = default)
     {
         // Validate request
@@ -97,6 +103,8 @@ public class DeliveryNoteService : IDeliveryNoteService
         return deliveryNote.ToResponse();
     }
 
+    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>Initializes or represents a public member.</summary>
     public async Task<DeliveryNoteResponse?> GetByIdAsync(string deliveryNoteId, CancellationToken ct = default)
     {
         // Try to get from cache first
@@ -130,6 +138,8 @@ public class DeliveryNoteService : IDeliveryNoteService
         return response;
     }
 
+    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>Initializes or represents a public member.</summary>
     public async Task<PaginatedResponse<DeliveryNoteSummaryDto>> SearchAsync(
         DeliveryNoteFilterRequest filter,
         string principalId,
@@ -223,6 +233,8 @@ public class DeliveryNoteService : IDeliveryNoteService
         };
     }
 
+    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>Initializes or represents a public member.</summary>
     public async Task<DeliveryNoteResponse> UpdateStatusAsync(
         string deliveryNoteId,
         UpdateDeliveryStatusRequest request,
@@ -298,6 +310,8 @@ public class DeliveryNoteService : IDeliveryNoteService
         return deliveryNote.ToResponse();
     }
 
+    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>Initializes or represents a public member.</summary>
     public async Task<DeliveryNoteFileResponse> AddFileAsync(
         string deliveryNoteId,
         IFormFile file,
@@ -364,6 +378,8 @@ public class DeliveryNoteService : IDeliveryNoteService
         }
     }
 
+    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>Initializes or represents a public member.</summary>
     public async Task<List<DeliveryNoteFileResponse>> GetFilesAsync(
         string deliveryNoteId,
         CancellationToken ct = default)
@@ -376,6 +392,8 @@ public class DeliveryNoteService : IDeliveryNoteService
         return files.Select(f => f.ToResponse()).ToList();
     }
 
+    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>Initializes or represents a public member.</summary>
     public async Task<DeliveryNoteResponse> UpdateAsync(
         string deliveryNoteId,
         UpdateDeliveryNoteRequest request,
@@ -460,6 +478,8 @@ public class DeliveryNoteService : IDeliveryNoteService
         throw new InvalidOperationException("Update failed after maximum retries");
     }
 
+    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>Initializes or represents a public member.</summary>
     public async Task SoftDeleteAsync(string deliveryNoteId, string deletedBy, CancellationToken ct = default)
     {
         var deliveryNote = await _context.DeliveryNotes
@@ -599,6 +619,8 @@ public class DeliveryNoteService : IDeliveryNoteService
         }
     }
 
+    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>Initializes or represents a public member.</summary>
     public async Task<BarcodeScanResponse> ScanBarcodeAsync(
         string deliveryNoteId,
         string barcodeValue,

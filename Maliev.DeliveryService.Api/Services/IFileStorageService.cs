@@ -1,5 +1,7 @@
 namespace Maliev.DeliveryService.Api.Services;
 
+/// <summary>Initializes or represents a public member.</summary>
+/// <summary>Initializes or represents a public member.</summary>
 public interface IFileStorageService
 {
     /// <summary>

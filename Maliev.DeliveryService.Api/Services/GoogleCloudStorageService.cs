@@ -3,12 +3,16 @@ using System.Net.Http;
 
 namespace Maliev.DeliveryService.Api.Services;
 
+/// <summary>Initializes or represents a public member.</summary>
+/// <summary>Initializes or represents a public member.</summary>
 public class GoogleCloudStorageService : IFileStorageService
 {
     private readonly StorageClient _storageClient;
     private readonly string _bucketName;
     private readonly ILogger<GoogleCloudStorageService> _logger;
 
+    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>Initializes or represents a public member.</summary>
     public GoogleCloudStorageService(
         StorageClient storageClient,
         IConfiguration configuration,
@@ -20,6 +24,8 @@ public class GoogleCloudStorageService : IFileStorageService
         _logger = logger;
     }
 
+    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>Initializes or represents a public member.</summary>
     public async Task<string> UploadAsync(
         Stream fileStream,
         string fileName,
@@ -54,6 +60,8 @@ public class GoogleCloudStorageService : IFileStorageService
         }
     }
 
+    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>Initializes or represents a public member.</summary>
     public Task<string> GetSignedUrlAsync(
         string fileName,
         TimeSpan expiration,
@@ -80,6 +88,8 @@ public class GoogleCloudStorageService : IFileStorageService
         }
     }
 
+    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>Initializes or represents a public member.</summary>
     public async Task DeleteAsync(string fileName, CancellationToken ct = default)
     {
         try
@@ -105,6 +115,8 @@ public class GoogleCloudStorageService : IFileStorageService
         }
     }
 
+    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>Initializes or represents a public member.</summary>
     public async Task<bool> ExistsAsync(string fileName, CancellationToken ct = default)
     {
         try

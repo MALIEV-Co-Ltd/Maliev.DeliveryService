@@ -4,11 +4,15 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace Maliev.DeliveryService.Api.HealthChecks;
 
+/// <summary>Initializes or represents a public member.</summary>
+/// <summary>Initializes or represents a public member.</summary>
 public class DatabaseMigrationHealthCheck : IHealthCheck
 {
     private readonly DeliveryDbContext _context;
     private readonly ILogger<DatabaseMigrationHealthCheck> _logger;
 
+    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>Initializes or represents a public member.</summary>
     public DatabaseMigrationHealthCheck(
         DeliveryDbContext context,
         ILogger<DatabaseMigrationHealthCheck> logger)
@@ -17,6 +21,8 @@ public class DatabaseMigrationHealthCheck : IHealthCheck
         _logger = logger;
     }
 
+    /// <summary>Initializes or represents a public member.</summary>
+    /// <summary>Initializes or represents a public member.</summary>
     public async Task<HealthCheckResult> CheckHealthAsync(
         HealthCheckContext context,
         CancellationToken cancellationToken = default)

@@ -1,21 +1,33 @@
+using Maliev.Aspire.ServiceDefaults.IAM;
+
 namespace Maliev.DeliveryService.Api.Services;
 
 public class DeliveryNoteAuthorizationService : IDeliveryNoteAuthorizationService
 {
-    // TODO: Integrate with IAMService for actual customer assignments
-    // For now, this is a stub implementation
+    private readonly IIamServiceClient _iamServiceClient;
 
-    public Task<bool> CanAccessCustomerAsync(string principalId, Guid customerId, CancellationToken ct = default)
+    public DeliveryNoteAuthorizationService(IIamServiceClient iamServiceClient)
     {
-        // Stub: Always return true for now
-        // In production, this would call IAMService to check customer assignments
-        return Task.FromResult(true);
+        _iamServiceClient = iamServiceClient;
     }
 
-    public Task<List<Guid>> GetAuthorizedCustomerIdsAsync(string principalId, CancellationToken ct = default)
+    public async Task<bool> CanAccessCustomerAsync(string principalId, Guid customerId, CancellationToken ct = default)
     {
-        // Stub: Return empty list for now
-        // In production, this would call IAMService to get assigned customer IDs
-        return Task.FromResult(new List<Guid>());
+        return await _iamServiceClient.CheckPermissionAsync(principalId, "delivery.customer.read", $"customers/{customerId}", ct);
+    }
+
+    public async Task<List<Guid>> GetAuthorizedCustomerIdsAsync(string principalId, CancellationToken ct = default)
+    {
+        var authorizedResourceIds = await _iamServiceClient.GetAuthorizedResourcesAsync(principalId, "delivery.customer.read", "customers", ct);
+        
+        var result = new List<Guid>();
+        foreach (var idStr in authorizedResourceIds)
+        {
+            if (Guid.TryParse(idStr, out var id))
+            {
+                result.Add(id);
+            }
+        }
+        return result;
     }
 }

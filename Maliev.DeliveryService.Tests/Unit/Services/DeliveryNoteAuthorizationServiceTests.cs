@@ -1,3 +1,4 @@
+using Moq;
 using Maliev.DeliveryService.Api.Services;
 using Xunit;
 
@@ -9,7 +10,10 @@ public class DeliveryNoteAuthorizationServiceTests
 
     public DeliveryNoteAuthorizationServiceTests()
     {
-        _service = new DeliveryNoteAuthorizationService();
+        var mockIamClient = new Moq.Mock<Maliev.Aspire.ServiceDefaults.IAM.IIamServiceClient>();
+        mockIamClient.Setup(x => x.CheckPermissionAsync(Moq.It.IsAny<string>(), Moq.It.IsAny<string>(), Moq.It.IsAny<string>(), Moq.It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        mockIamClient.Setup(x => x.GetAuthorizedResourcesAsync(Moq.It.IsAny<string>(), Moq.It.IsAny<string>(), Moq.It.IsAny<string>(), Moq.It.IsAny<CancellationToken>())).ReturnsAsync(new List<string>());
+        _service = new DeliveryNoteAuthorizationService(mockIamClient.Object);
     }
 
     [Fact]

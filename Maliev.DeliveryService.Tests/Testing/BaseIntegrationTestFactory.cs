@@ -47,7 +47,7 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
     /// Override this property if your DbContext connection string has a different name.
     /// Defaults to the DbContext class name.
     /// </summary>
-    protected virtual string DbConnectionStringName => "DeliveryDb";
+    protected virtual string DbConnectionStringName => "DeliveryDbContext";
 
     public BaseIntegrationTestFactory()
     {

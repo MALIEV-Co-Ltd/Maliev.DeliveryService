@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Maliev.DeliveryService.Data.Migrations
 {
     [DbContext(typeof(DeliveryDbContext))]
-    [Migration("20260217015106_AddDescriptionToDeliveryNoteFile")]
-    partial class AddDescriptionToDeliveryNoteFile
+    [Migration("20260225024707_StandardizeDeliveryService")]
+    partial class StandardizeDeliveryService
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -109,7 +109,8 @@ namespace Maliev.DeliveryService.Data.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("updated_by");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("pk_addresses");
 
                     b.ToTable("addresses", (string)null);
                 });
@@ -194,8 +195,8 @@ namespace Maliev.DeliveryService.Data.Migrations
                         .HasColumnName("is_deleted");
 
                     b.Property<string>("OrderId")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
                         .HasColumnName("order_id");
 
                     b.Property<int?>("PurchaseOrderId")
@@ -209,7 +210,6 @@ namespace Maliev.DeliveryService.Data.Migrations
 
                     b.Property<int>("RowVersion")
                         .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("integer")
                         .HasColumnName("row_version");
 
@@ -233,7 +233,8 @@ namespace Maliev.DeliveryService.Data.Migrations
                         .HasColumnName("shipping_city");
 
                     b.Property<decimal?>("ShippingCost")
-                        .HasColumnType("decimal(18,2)")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
                         .HasColumnName("shipping_cost");
 
                     b.Property<string>("ShippingCostCurrency")
@@ -266,13 +267,12 @@ namespace Maliev.DeliveryService.Data.Migrations
 
                     b.Property<string>("Status")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
+                        .HasColumnType("text")
                         .HasColumnName("status");
 
                     b.Property<string>("TrackingNumber")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
                         .HasColumnName("tracking_number");
 
                     b.Property<DateTime?>("UpdatedAt")
@@ -284,32 +284,23 @@ namespace Maliev.DeliveryService.Data.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("updated_by");
 
-                    b.HasKey("DeliveryNoteId");
+                    b.HasKey("DeliveryNoteId")
+                        .HasName("pk_delivery_notes");
 
                     b.HasIndex("CustomerId")
-                        .HasDatabaseName("idx_delivery_notes_customer_id")
-                        .HasFilter("NOT is_deleted");
+                        .HasDatabaseName("idx_delivery_notes_customer_id");
 
                     b.HasIndex("DeliveryDate")
-                        .HasDatabaseName("idx_delivery_notes_delivery_date")
-                        .HasFilter("NOT is_deleted");
+                        .HasDatabaseName("idx_delivery_notes_delivery_date");
 
                     b.HasIndex("OrderId")
-                        .HasDatabaseName("idx_delivery_notes_order_id")
-                        .HasFilter("NOT is_deleted");
+                        .HasDatabaseName("idx_delivery_notes_order_id");
 
                     b.HasIndex("Status")
-                        .HasDatabaseName("idx_delivery_notes_status")
-                        .HasFilter("NOT is_deleted");
-
-                    b.HasIndex("TrackingNumber")
-                        .HasDatabaseName("idx_delivery_notes_tracking_number")
-                        .HasFilter("NOT is_deleted");
+                        .HasDatabaseName("idx_delivery_notes_status");
 
                     b.HasIndex("CustomerId", "DeliveryDate")
-                        .IsDescending(false, true)
-                        .HasDatabaseName("idx_delivery_notes_customer_delivery_date")
-                        .HasFilter("NOT is_deleted");
+                        .HasDatabaseName("idx_delivery_notes_customer_date");
 
                     b.ToTable("delivery_notes", (string)null);
                 });
@@ -324,8 +315,8 @@ namespace Maliev.DeliveryService.Data.Migrations
 
                     b.Property<string>("ContentType")
                         .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
                         .HasColumnName("content_type");
 
                     b.Property<DateTime?>("DeletedAt")
@@ -339,7 +330,8 @@ namespace Maliev.DeliveryService.Data.Migrations
                         .HasColumnName("delivery_note_id");
 
                     b.Property<string>("Description")
-                        .HasColumnType("text")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
                         .HasColumnName("description");
 
                     b.Property<string>("FileName")
@@ -354,8 +346,7 @@ namespace Maliev.DeliveryService.Data.Migrations
 
                     b.Property<string>("FileType")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
+                        .HasColumnType("text")
                         .HasColumnName("file_type");
 
                     b.Property<bool>("IsDeleted")
@@ -366,8 +357,8 @@ namespace Maliev.DeliveryService.Data.Migrations
 
                     b.Property<string>("StorageUrl")
                         .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
                         .HasColumnName("storage_url");
 
                     b.Property<DateTime>("UploadedAt")
@@ -382,11 +373,11 @@ namespace Maliev.DeliveryService.Data.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("uploaded_by");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("pk_delivery_note_files");
 
                     b.HasIndex("DeliveryNoteId")
-                        .HasDatabaseName("idx_delivery_note_files_delivery_note_id")
-                        .HasFilter("NOT is_deleted");
+                        .HasDatabaseName("idx_delivery_note_files_dn_id");
 
                     b.ToTable("delivery_note_files", (string)null);
                 });
@@ -401,10 +392,8 @@ namespace Maliev.DeliveryService.Data.Migrations
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
                     b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at")
-                        .HasDefaultValueSql("NOW()");
+                        .HasColumnName("created_at");
 
                     b.Property<string>("DeliveryNoteId")
                         .IsRequired()
@@ -417,11 +406,11 @@ namespace Maliev.DeliveryService.Data.Migrations
                         .HasColumnName("item_notes");
 
                     b.Property<string>("OrderId")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
+                        .HasColumnType("text")
                         .HasColumnName("order_id");
 
                     b.Property<string>("ProductCode")
+                        .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("product_code");
@@ -431,47 +420,46 @@ namespace Maliev.DeliveryService.Data.Migrations
                         .HasColumnName("product_description");
 
                     b.Property<string>("ProductName")
+                        .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
                         .HasColumnName("product_name");
 
-                    b.Property<long?>("PurchaseOrderItemId")
-                        .HasColumnType("bigint")
+                    b.Property<int?>("PurchaseOrderItemId")
+                        .HasColumnType("integer")
                         .HasColumnName("purchase_order_item_id");
 
                     b.Property<decimal>("QuantityDelivered")
-                        .HasColumnType("decimal(18,4)")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
                         .HasColumnName("quantity_delivered");
 
                     b.Property<decimal>("QuantityManufactured")
-                        .HasColumnType("decimal(18,4)")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
                         .HasColumnName("quantity_manufactured");
 
                     b.Property<decimal>("QuantityOrdered")
-                        .HasColumnType("decimal(18,4)")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
                         .HasColumnName("quantity_ordered");
 
                     b.Property<string>("UnitOfMeasure")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
                         .HasColumnName("unit_of_measure");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("pk_delivery_note_items");
 
                     b.HasIndex("DeliveryNoteId")
-                        .HasDatabaseName("idx_delivery_note_items_delivery_note_id");
+                        .HasDatabaseName("idx_delivery_note_items_dn_id");
 
-                    b.ToTable("delivery_note_items", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_delivery_note_items_quantity_delivered_max", "quantity_delivered <= quantity_manufactured");
+                    b.HasIndex("ProductCode")
+                        .HasDatabaseName("idx_delivery_note_items_product");
 
-                            t.HasCheckConstraint("CK_delivery_note_items_quantity_delivered_positive", "quantity_delivered > 0");
-
-                            t.HasCheckConstraint("CK_delivery_note_items_quantity_manufactured", "quantity_manufactured >= 0");
-
-                            t.HasCheckConstraint("CK_delivery_note_items_quantity_ordered", "quantity_ordered >= 0");
-                        });
+                    b.ToTable("delivery_note_items", (string)null);
                 });
 
             modelBuilder.Entity("Maliev.DeliveryService.Data.Entities.DeliveryNoteFile", b =>
@@ -480,7 +468,8 @@ namespace Maliev.DeliveryService.Data.Migrations
                         .WithMany("Files")
                         .HasForeignKey("DeliveryNoteId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_delivery_note_files_delivery_notes_delivery_note_id");
 
                     b.Navigation("DeliveryNote");
                 });
@@ -491,7 +480,8 @@ namespace Maliev.DeliveryService.Data.Migrations
                         .WithMany("Items")
                         .HasForeignKey("DeliveryNoteId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_delivery_note_items_delivery_notes_delivery_note_id");
 
                     b.Navigation("DeliveryNote");
                 });

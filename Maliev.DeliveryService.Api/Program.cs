@@ -79,7 +79,8 @@ try
     {
         // Base address will be resolved by service discovery if "order-service" is used
         client.BaseAddress = new Uri(builder.Configuration["OrderService:BaseUrl"] ?? "http://order-service");
-    });
+    })
+    .AddHttpMessageHandler<Maliev.Aspire.ServiceDefaults.IAM.ServiceAccountAuthenticationHandler>();
 
     // Authorization Infrastructure
     builder.Services.AddPermissionAuthorization();

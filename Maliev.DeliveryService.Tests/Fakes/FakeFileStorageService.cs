@@ -8,9 +8,17 @@ namespace Maliev.DeliveryService.Tests.Fakes;
 public class FakeFileStorageService : IFileStorageService
 {
     private readonly Dictionary<string, byte[]> _files = new();
+    private bool _shouldThrow;
+
+    public void SetThrowError(bool throwError)
+    {
+        _shouldThrow = throwError;
+    }
 
     public Task<string> UploadAsync(Stream fileStream, string fileName, string contentType, CancellationToken ct = default)
     {
+        if (_shouldThrow) throw new Exception("Fake storage error");
+
         using var memoryStream = new MemoryStream();
         fileStream.CopyTo(memoryStream);
         var fileData = memoryStream.ToArray();

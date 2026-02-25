@@ -18,11 +18,30 @@ public class DeliveryDbContext : DbContext
     {
     }
 
+    /// <summary>
+    /// Gets or sets the Delivery Notes collection.
+    /// </summary>
     public DbSet<DeliveryNote> DeliveryNotes => Set<DeliveryNote>();
+
+    /// <summary>
+    /// Gets or sets the Delivery Note Items collection.
+    /// </summary>
     public DbSet<DeliveryNoteItem> DeliveryNoteItems => Set<DeliveryNoteItem>();
+
+    /// <summary>
+    /// Gets or sets the Delivery Note Files collection.
+    /// </summary>
     public DbSet<DeliveryNoteFile> DeliveryNoteFiles => Set<DeliveryNoteFile>();
+
+    /// <summary>
+    /// Gets or sets the Addresses collection.
+    /// </summary>
     public DbSet<Address> Addresses => Set<Address>();
 
+    /// <summary>
+    /// Configures the model that was discovered by convention from the entity types.
+    /// </summary>
+    /// <param name="modelBuilder">The builder being used to construct the model for this context.</param>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

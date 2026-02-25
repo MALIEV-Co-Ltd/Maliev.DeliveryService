@@ -64,16 +64,13 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
         {
             if (!_containersStarted)
             {
-                _postgresContainer = new PostgreSqlContainerBuilder()
-                    .WithImage("postgres:18-alpine")
+                _postgresContainer = new PostgreSqlBuilder("postgres:18-alpine")
                     .Build();
 
-                _redisContainer = new RedisBuilder()
-                    .WithImage("redis:7.4-alpine")
+                _redisContainer = new RedisBuilder("redis:7.4-alpine")
                     .Build();
 
-                _rabbitmqContainer = new RabbitMqBuilder()
-                    .WithImage("rabbitmq:4.0-alpine")
+                _rabbitmqContainer = new RabbitMqBuilder("rabbitmq:4.0-alpine")
                     .Build();
 
                 // Start all containers in parallel

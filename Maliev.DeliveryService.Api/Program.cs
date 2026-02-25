@@ -28,7 +28,7 @@ try
 
     // Database Context with ServiceDefaults
     builder.AddPostgresDbContext<DeliveryDbContext>(
-        connectionName: "DeliveryDb");
+        connectionName: "DeliveryDbContext");
 
     builder.AddStandardCache("delivery:"); // Redis + in-memory fallback, memory-optimized
     

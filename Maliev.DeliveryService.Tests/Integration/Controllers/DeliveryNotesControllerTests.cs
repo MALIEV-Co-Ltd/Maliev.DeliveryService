@@ -6,26 +6,21 @@ using Xunit;
 
 namespace Maliev.DeliveryService.Tests.Integration.Controllers;
 
-[Collection("IntegrationTests")]
 [Trait("Category", "Integration")]
-public class DeliveryNotesControllerTests
+public class DeliveryNotesControllerTests : BaseIntegrationTest
 {
-    private readonly DeliveryServiceTestFixture _fixture;
-    private readonly HttpClient _client;
-
-    public DeliveryNotesControllerTests(DeliveryServiceTestFixture fixture)
+    public DeliveryNotesControllerTests(DeliveryServiceTestFixture fixture) : base(fixture)
     {
-        _fixture = fixture;
-        _client = fixture.CreateClient();
     }
 
     [Fact]
     public async Task CreateDeliveryNote_ValidRequest_ReturnsCreated()
     {
         // Arrange
+        await CleanDatabaseAsync();
         var request = new CreateDeliveryNoteRequest
         {
-            OrderId = "ORD-INT-001",
+            OrderId = $"ORD-INT-{Guid.NewGuid():N}",
             CustomerId = Guid.NewGuid(),
             CustomerName = "Integration Test Customer",
             DeliveryDate = DateTime.UtcNow.AddDays(1),
@@ -44,7 +39,7 @@ public class DeliveryNotesControllerTests
         };
 
         // Act
-        var response = await _client.PostAsJsonAsync("/delivery/v1/delivery-notes", request);
+        var response = await Client.PostAsJsonAsync("/delivery/v1/delivery-notes", request);
 
         // Assert
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
@@ -54,26 +49,80 @@ public class DeliveryNotesControllerTests
     }
 
     [Fact]
-    public async Task GetDeliveryNote_ExistingId_ReturnsOk()
+    public async Task SearchDeliveryNotes_ValidFilter_ReturnsOk()
     {
-        // Arrange - Create one first
+        // Arrange
+        await CleanDatabaseAsync();
+        var customerId = Guid.NewGuid();
         var request = new CreateDeliveryNoteRequest
         {
-            OrderId = "ORD-INT-002",
-            CustomerId = Guid.NewGuid(),
-            CustomerName = "Integration Test Customer 2",
+            OrderId = $"ORD-SEARCH-{Guid.NewGuid():N}",
+            CustomerId = customerId,
+            CustomerName = "Search Customer",
             DeliveryDate = DateTime.UtcNow.AddDays(1),
             Items = new List<CreateDeliveryNoteItemRequest> { new() { ProductCode = "P1", QuantityOrdered = 1, QuantityManufactured = 1, QuantityDelivered = 1, UnitOfMeasure = "pcs" } }
         };
-        var createResponse = await _client.PostAsJsonAsync("/delivery/v1/delivery-notes", request);
-        var created = await createResponse.Content.ReadFromJsonAsync<DeliveryNoteResponse>();
+        await Client.PostAsJsonAsync("/delivery/v1/delivery-notes", request);
 
         // Act
-        var response = await _client.GetAsync($"/delivery/v1/delivery-notes/{created!.DeliveryNoteId}");
+        var response = await Client.GetAsync($"/delivery/v1/delivery-notes?customerId={customerId}");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<PaginatedResponse<DeliveryNoteSummaryDto>>();
+        Assert.NotNull(result);
+        Assert.True(result.TotalCount >= 1);
+    }
+
+    [Fact]
+    public async Task UpdateDeliveryStatus_ValidTransition_ReturnsOk()
+    {
+        // Arrange
+        await CleanDatabaseAsync();
+        var request = new CreateDeliveryNoteRequest
+        {
+            OrderId = $"ORD-STATUS-{Guid.NewGuid():N}",
+            CustomerId = Guid.NewGuid(),
+            CustomerName = "Status Customer",
+            DeliveryDate = DateTime.UtcNow.AddDays(1),
+            Items = new List<CreateDeliveryNoteItemRequest> { new() { ProductCode = "P1", QuantityOrdered = 1, QuantityManufactured = 1, QuantityDelivered = 1, UnitOfMeasure = "pcs" } }
+        };
+        var createResponse = await Client.PostAsJsonAsync("/delivery/v1/delivery-notes", request);
+        var created = await createResponse.Content.ReadFromJsonAsync<DeliveryNoteResponse>();
+        Assert.NotNull(created);
+
+        var updateRequest = new UpdateDeliveryStatusRequest { NewStatus = "InTransit" };
+
+        // Act
+        var response = await Client.PatchAsJsonAsync($"/delivery/v1/delivery-notes/{created.DeliveryNoteId}/status", updateRequest);
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var result = await response.Content.ReadFromJsonAsync<DeliveryNoteResponse>();
-        Assert.Equal(created.DeliveryNoteId, result!.DeliveryNoteId);
+        Assert.Equal("InTransit", result!.Status);
+    }
+
+    [Fact]
+    public async Task DeleteDeliveryNote_PendingStatus_ReturnsNoContent()
+    {
+        // Arrange
+        await CleanDatabaseAsync();
+        var request = new CreateDeliveryNoteRequest
+        {
+            OrderId = $"ORD-DELETE-{Guid.NewGuid():N}",
+            CustomerId = Guid.NewGuid(),
+            CustomerName = "Delete Customer",
+            DeliveryDate = DateTime.UtcNow.AddDays(1),
+            Items = new List<CreateDeliveryNoteItemRequest> { new() { ProductCode = "P1", QuantityOrdered = 1, QuantityManufactured = 1, QuantityDelivered = 1, UnitOfMeasure = "pcs" } }
+        };
+        var createResponse = await Client.PostAsJsonAsync("/delivery/v1/delivery-notes", request);
+        var created = await createResponse.Content.ReadFromJsonAsync<DeliveryNoteResponse>();
+        Assert.NotNull(created);
+
+        // Act
+        var response = await Client.DeleteAsync($"/delivery/v1/delivery-notes/{created.DeliveryNoteId}");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
 }

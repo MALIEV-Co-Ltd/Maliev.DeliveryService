@@ -9,6 +9,8 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Text.Json;
+using Moq;
 
 namespace Maliev.DeliveryService.Tests.Unit.Services;
 
@@ -181,8 +183,8 @@ public class DeliveryNoteServiceTests : IDisposable
         // Verify status changed event was published
         var statusChangedEvents = _fakePublishEndpoint.GetPublishedMessages<Maliev.MessagingContracts.Contracts.Delivery.DeliveryStatusChangedEvent>();
         Assert.Single(statusChangedEvents);
-        Assert.Equal("Pending", statusChangedEvents[0].PreviousStatus);
-        Assert.Equal("InTransit", statusChangedEvents[0].NewStatus);
+        Assert.Equal("Pending", statusChangedEvents[0].Payload.PreviousStatus);
+        Assert.Equal("InTransit", statusChangedEvents[0].Payload.NewStatus);
     }
 
     [Fact]
@@ -341,6 +343,156 @@ public class DeliveryNoteServiceTests : IDisposable
             () => _service.SoftDeleteAsync(created.DeliveryNoteId, "test-user"));
 
         Assert.Contains("Only Pending delivery notes can be deleted", exception.Message);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_CacheHit_ReturnsFromCache()
+    {
+        // Arrange
+        var deliveryNoteId = "DN-2026-CACHE";
+        var response = new DeliveryNoteResponse
+        {
+            DeliveryNoteId = deliveryNoteId,
+            OrderId = "ORD-CACHE",
+            Status = "Pending"
+        };
+
+        var cacheKey = $"delivery-note:{deliveryNoteId}";
+        await _cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(response));
+
+        // Act
+        var result = await _service.GetByIdAsync(deliveryNoteId);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(deliveryNoteId, result.DeliveryNoteId);
+        Assert.Equal("ORD-CACHE", result.OrderId);
+    }
+
+    [Fact]
+    public async Task SearchAsync_WithFilters_ReturnsPaginatedResult()
+    {
+        // Arrange
+        var customerId = Guid.NewGuid();
+        _context.DeliveryNotes.Add(new DeliveryNote
+        {
+            DeliveryNoteId = "DN-S1",
+            OrderId = "ORD-S1",
+            CustomerId = customerId,
+            CustomerName = "Search Test",
+            Status = DeliveryStatus.Pending,
+            DeliveryDate = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow,
+            CreatedBy = "test"
+        });
+        await _context.SaveChangesAsync();
+
+        var filter = new DeliveryNoteFilterRequest
+        {
+            CustomerId = customerId,
+            Page = 1,
+            PageSize = 10
+        };
+
+        // Act
+        var result = await _service.SearchAsync(filter, "test-user");
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(1, result.TotalCount);
+        Assert.Single(result.Items);
+        Assert.Equal("DN-S1", result.Items[0].DeliveryNoteId);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ValidRequest_UpdatesFields()
+    {
+        // Arrange
+        var createRequest = new CreateDeliveryNoteRequest
+        {
+            OrderId = "ORD-UPDATE",
+            CustomerId = Guid.NewGuid(),
+            DeliveryDate = DateTime.UtcNow.AddDays(1),
+            Items = new List<CreateDeliveryNoteItemRequest> { new() { ProductCode = "P1", QuantityOrdered = 10, QuantityManufactured = 10, QuantityDelivered = 5, UnitOfMeasure = "pcs" } }
+        };
+        var created = await _service.CreateAsync(createRequest, "test-user");
+
+        var updateRequest = new UpdateDeliveryNoteRequest
+        {
+            CarrierName = "New Carrier",
+            TrackingNumber = "TRACK123",
+            RowVersion = (await _context.DeliveryNotes.FirstAsync(dn => dn.DeliveryNoteId == created.DeliveryNoteId)).RowVersion
+        };
+
+        // Act
+        var result = await _service.UpdateAsync(created.DeliveryNoteId, updateRequest, "test-user");
+
+        // Assert
+        Assert.Equal("New Carrier", result.CarrierName);
+        Assert.Equal("TRACK123", result.TrackingNumber);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ConcurrencyConflict_ThrowsException()
+    {
+        // Arrange
+        var createRequest = new CreateDeliveryNoteRequest
+        {
+            OrderId = "ORD-CONFLICT",
+            CustomerId = Guid.NewGuid(),
+            DeliveryDate = DateTime.UtcNow.AddDays(1),
+            Items = new List<CreateDeliveryNoteItemRequest> { new() { ProductCode = "P1", QuantityOrdered = 10, QuantityManufactured = 10, QuantityDelivered = 5, UnitOfMeasure = "pcs" } }
+        };
+        var created = await _service.CreateAsync(createRequest, "test-user");
+
+        var updateRequest = new UpdateDeliveryNoteRequest
+        {
+            CarrierName = "New Carrier",
+            RowVersion = 999 // Wrong row version
+        };
+
+        // Act & Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _service.UpdateAsync(created.DeliveryNoteId, updateRequest, "test-user"));
+    }
+
+    [Fact]
+    public async Task AddFileAsync_ValidFile_AddsToFileList()
+    {
+        // Arrange
+        var createRequest = new CreateDeliveryNoteRequest
+        {
+            OrderId = "ORD-FILE",
+            CustomerId = Guid.NewGuid(),
+            DeliveryDate = DateTime.UtcNow.AddDays(1),
+            Items = new List<CreateDeliveryNoteItemRequest> { new() { ProductCode = "P1", QuantityOrdered = 10, QuantityManufactured = 10, QuantityDelivered = 5, UnitOfMeasure = "pcs" } }
+        };
+        var created = await _service.CreateAsync(createRequest, "test-user");
+
+        var fileMock = new Mock<Microsoft.AspNetCore.Http.IFormFile>();
+        var content = "fake content";
+        var fileName = "test.png";
+        var ms = new MemoryStream();
+        var writer = new StreamWriter(ms);
+        writer.Write(content);
+        writer.Flush();
+        ms.Position = 0;
+
+        fileMock.Setup(_ => _.OpenReadStream()).Returns(ms);
+        fileMock.Setup(_ => _.FileName).Returns(fileName);
+        fileMock.Setup(_ => _.Length).Returns(ms.Length);
+        fileMock.Setup(_ => _.ContentType).Returns("image/png");
+
+        // Act
+        var result = await _service.AddFileAsync(created.DeliveryNoteId, fileMock.Object, FileType.Photo, "Test file", "test-user");
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(fileName, result.OriginalFileName);
+
+        var files = await _service.GetFilesAsync(created.DeliveryNoteId);
+        Assert.Single(files);
+        Assert.Equal(fileName, files[0].OriginalFileName);
     }
 
     public void Dispose()

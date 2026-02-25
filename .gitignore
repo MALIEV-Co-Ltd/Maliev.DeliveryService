@@ -57,6 +57,7 @@ nunit-*.xml
 *.xunit.runner.json
 
 # Code Coverage
+coverage/
 coverage*.json
 coverage*.xml
 *.coverage

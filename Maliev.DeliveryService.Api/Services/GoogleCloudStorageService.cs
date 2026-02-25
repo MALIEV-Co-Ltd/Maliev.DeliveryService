@@ -8,6 +8,7 @@ public class GoogleCloudStorageService : IFileStorageService
     private readonly StorageClient _storageClient;
     private readonly string _bucketName;
     private readonly ILogger<GoogleCloudStorageService> _logger;
+    private readonly Func<string, string, TimeSpan, HttpMethod, string>? _urlSigner;
 
     public GoogleCloudStorageService(
         StorageClient storageClient,
@@ -18,6 +19,21 @@ public class GoogleCloudStorageService : IFileStorageService
         _bucketName = configuration["GoogleCloudStorage:BucketName"]
             ?? throw new InvalidOperationException("GoogleCloudStorage:BucketName not configured");
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Internal constructor for unit testing to provide a mock signer.
+    /// </summary>
+    internal GoogleCloudStorageService(
+        StorageClient storageClient,
+        string bucketName,
+        ILogger<GoogleCloudStorageService> logger,
+        Func<string, string, TimeSpan, HttpMethod, string> urlSigner)
+    {
+        _storageClient = storageClient;
+        _bucketName = bucketName;
+        _logger = logger;
+        _urlSigner = urlSigner;
     }
 
     public async Task<string> UploadAsync(
@@ -33,7 +49,7 @@ public class GoogleCloudStorageService : IFileStorageService
 
             _logger.LogInformation("Uploading file to GCS: {FileName} as {UniqueFileName}", fileName, uniqueFileName);
 
-            var obj = await _storageClient.UploadObjectAsync(
+            await _storageClient.UploadObjectAsync(
                 bucket: _bucketName,
                 objectName: uniqueFileName,
                 contentType: contentType,
@@ -65,6 +81,11 @@ public class GoogleCloudStorageService : IFileStorageService
             var objectName = fileName.StartsWith("gs://")
                 ? fileName.Substring($"gs://{_bucketName}/".Length)
                 : fileName;
+
+            if (_urlSigner != null)
+            {
+                return Task.FromResult(_urlSigner(_bucketName, objectName, expiration, HttpMethod.Get));
+            }
 
             // Create signed URL using UrlSigner (synchronous operation)
             var signedUrl = UrlSigner.FromCredential(

@@ -4,8 +4,15 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Maliev.DeliveryService.Data.Configurations;
 
+/// <summary>
+/// Entity Framework configuration for the <see cref="Address"/> entity.
+/// </summary>
 public class AddressConfiguration : IEntityTypeConfiguration<Address>
 {
+    /// <summary>
+    /// Configures the entity of type <see cref="Address"/>.
+    /// </summary>
+    /// <param name="builder">The builder to be used to configure the entity type.</param>
     public void Configure(EntityTypeBuilder<Address> builder)
     {
         builder.ToTable("addresses");

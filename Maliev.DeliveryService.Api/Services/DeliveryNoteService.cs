@@ -3,7 +3,7 @@ using Maliev.DeliveryService.Api.DTOs;
 using Maliev.DeliveryService.Data;
 using Maliev.DeliveryService.Data.Entities;
 using Maliev.MessagingContracts.Contracts.Delivery;
-using Maliev.MessagingContracts.Generated;
+using Maliev.MessagingContracts;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;

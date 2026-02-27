@@ -4,7 +4,7 @@ using Maliev.DeliveryService.Api.Services;
 using Maliev.DeliveryService.Data;
 using Maliev.DeliveryService.Data.Entities;
 using Maliev.MessagingContracts.Contracts.Orders;
-using Maliev.MessagingContracts.Generated;
+using Maliev.MessagingContracts;
 using MassTransit;
 using MassTransit.Testing;
 using Microsoft.EntityFrameworkCore;

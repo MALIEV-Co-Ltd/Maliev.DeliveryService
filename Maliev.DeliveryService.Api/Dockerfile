@@ -11,7 +11,9 @@ WORKDIR /src
 
 COPY ["NuGet.Config", "."]
 COPY ["Maliev.DeliveryService.Api/Maliev.DeliveryService.Api.csproj", "Maliev.DeliveryService.Api/"]
-COPY ["Maliev.DeliveryService.Data/Maliev.DeliveryService.Data.csproj", "Maliev.DeliveryService.Data/"]
+COPY ["Maliev.DeliveryService.Application/Maliev.DeliveryService.Application.csproj", "Maliev.DeliveryService.Application/"]
+COPY ["Maliev.DeliveryService.Domain/Maliev.DeliveryService.Domain.csproj", "Maliev.DeliveryService.Domain/"]
+COPY ["Maliev.DeliveryService.Infrastructure/Maliev.DeliveryService.Infrastructure.csproj", "Maliev.DeliveryService.Infrastructure/"]
 
 
 RUN --mount=type=secret,id=nuget_username \

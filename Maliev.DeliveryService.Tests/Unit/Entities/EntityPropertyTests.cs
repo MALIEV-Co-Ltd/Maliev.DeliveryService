@@ -1,4 +1,4 @@
-using Maliev.DeliveryService.Data.Entities;
+using Maliev.DeliveryService.Domain.Entities;
 using Xunit;
 
 namespace Maliev.DeliveryService.Tests.Unit.Entities;

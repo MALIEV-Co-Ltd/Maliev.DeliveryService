@@ -1,4 +1,4 @@
-using Maliev.DeliveryService.Data;
+using Maliev.DeliveryService.Infrastructure.Persistence;
 using Maliev.DeliveryService.Tests.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -10,7 +10,7 @@ public class DeliveryServiceTestFixture : BaseIntegrationTestFactory<Program, De
     protected override void ConfigureAdditionalServices(IServiceCollection services)
     {
         // Register fake services
-        services.AddSingleton<Api.Services.IFileStorageService, Fakes.FakeFileStorageService>();
+        services.AddSingleton<Application.Abstractions.IFileStorageService, Fakes.FakeFileStorageService>();
     }
 }
 

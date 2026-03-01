@@ -1,5 +1,6 @@
 using Google.Cloud.Storage.V1;
-using Maliev.DeliveryService.Api.Services;
+using Maliev.DeliveryService.Application.Abstractions;
+using Maliev.DeliveryService.Infrastructure.Storage;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;

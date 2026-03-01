@@ -1,4 +1,4 @@
-using Maliev.DeliveryService.Api.Services;
+using Maliev.DeliveryService.Application.Abstractions;
 
 namespace Maliev.DeliveryService.Tests.Fakes;
 

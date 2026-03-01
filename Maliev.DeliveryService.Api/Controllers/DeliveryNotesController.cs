@@ -1,9 +1,11 @@
 using Asp.Versioning;
-using Maliev.DeliveryService.Api.DTOs;
+using Maliev.DeliveryService.Application.DTOs;
+using Maliev.DeliveryService.Api.Authorization;
 using Maliev.DeliveryService.Api.Extensions;
-using Maliev.DeliveryService.Api.Services;
+using Maliev.DeliveryService.Application.Abstractions;
+using Maliev.DeliveryService.Domain.Entities;
+using Maliev.Aspire.ServiceDefaults.Authorization;
 using Maliev.MessagingContracts.Contracts.Delivery;
-using Maliev.MessagingContracts;
 using MassTransit;
 using Microsoft.AspNetCore.Mvc;
 
@@ -32,6 +34,7 @@ public class DeliveryNotesController : ControllerBase
     /// Create a new delivery note
     /// </summary>
     [HttpPost]
+    [RequirePermission(DeliveryPermissions.DeliveryNotes.Create)]
     [ProducesResponseType(typeof(DeliveryNoteResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<DeliveryNoteResponse>> CreateDeliveryNote(
@@ -59,6 +62,7 @@ public class DeliveryNotesController : ControllerBase
     /// Search and filter delivery notes with pagination
     /// </summary>
     [HttpGet]
+    [RequirePermission(DeliveryPermissions.DeliveryNotes.Read)]
     [ProducesResponseType(typeof(PaginatedResponse<DeliveryNoteSummaryDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<PaginatedResponse<DeliveryNoteSummaryDto>>> SearchDeliveryNotes(
         [FromQuery] DeliveryNoteFilterRequest filter,
@@ -74,6 +78,7 @@ public class DeliveryNotesController : ControllerBase
     /// Get a delivery note by ID
     /// </summary>
     [HttpGet("{id}")]
+    [RequirePermission(DeliveryPermissions.DeliveryNotes.Read)]
     [ProducesResponseType(typeof(DeliveryNoteResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<DeliveryNoteResponse>> GetDeliveryNote(
@@ -94,6 +99,7 @@ public class DeliveryNotesController : ControllerBase
     /// Update delivery note status
     /// </summary>
     [HttpPatch("{id}/status")]
+    [RequirePermission(DeliveryPermissions.DeliveryNotes.Update)]
     [ProducesResponseType(typeof(DeliveryNoteResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -129,6 +135,7 @@ public class DeliveryNotesController : ControllerBase
     /// Request PDF generation for a delivery note
     /// </summary>
     [HttpPost("{id}/generate-pdf")]
+    [RequirePermission(DeliveryPermissions.DeliveryNotes.GeneratePdf)]
     [ProducesResponseType(typeof(PdfGenerationResponse), StatusCodes.Status202Accepted)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<PdfGenerationResponse>> GeneratePdf(
@@ -149,7 +156,7 @@ public class DeliveryNotesController : ControllerBase
             await _publishEndpoint.Publish(new DeliveryNotePdfRequestedEvent(
                 Guid.NewGuid(),
                 nameof(DeliveryNotePdfRequestedEvent),
-                MessageType.Event,
+                Maliev.MessagingContracts.MessageType.Event,
                 "1.0",
                 "DeliveryService",
                 Array.Empty<string>(),
@@ -185,6 +192,7 @@ public class DeliveryNotesController : ControllerBase
     /// Upload a file attachment to a delivery note
     /// </summary>
     [HttpPost("{id}/files")]
+    [RequirePermission(DeliveryPermissions.DeliveryNoteFiles.Create)]
     [ProducesResponseType(typeof(DeliveryNoteFileResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -197,7 +205,7 @@ public class DeliveryNotesController : ControllerBase
     {
         try
         {
-            if (!Enum.TryParse<Data.Entities.FileType>(fileType, ignoreCase: true, out var fileTypeEnum))
+            if (!Enum.TryParse<FileType>(fileType, ignoreCase: true, out var fileTypeEnum))
             {
                 return BadRequest(new { error = $"Invalid file type: {fileType}" });
             }
@@ -230,6 +238,7 @@ public class DeliveryNotesController : ControllerBase
     /// Get all file attachments for a delivery note
     /// </summary>
     [HttpGet("{id}/files")]
+    [RequirePermission(DeliveryPermissions.DeliveryNoteFiles.Read)]
     [ProducesResponseType(typeof(List<DeliveryNoteFileResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<List<DeliveryNoteFileResponse>>> GetFiles(
         [FromRoute] string id,
@@ -243,6 +252,7 @@ public class DeliveryNotesController : ControllerBase
     /// Update delivery note carrier, tracking, and contact information
     /// </summary>
     [HttpPut("{id}")]
+    [RequirePermission(DeliveryPermissions.DeliveryNotes.Update)]
     [ProducesResponseType(typeof(DeliveryNoteResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -284,6 +294,7 @@ public class DeliveryNotesController : ControllerBase
     /// Soft delete a delivery note (Pending status only)
     /// </summary>
     [HttpDelete("{id}")]
+    [RequirePermission(DeliveryPermissions.DeliveryNotes.Delete)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

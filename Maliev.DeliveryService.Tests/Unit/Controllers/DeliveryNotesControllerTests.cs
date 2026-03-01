@@ -1,6 +1,6 @@
 using Maliev.DeliveryService.Api.Controllers;
-using Maliev.DeliveryService.Api.DTOs;
-using Maliev.DeliveryService.Api.Services;
+using Maliev.DeliveryService.Application.DTOs;
+using Maliev.DeliveryService.Application.Abstractions;
 using MassTransit;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -226,7 +226,7 @@ public class DeliveryNotesControllerTests
         // Arrange
         var fileMock = new Mock<IFormFile>();
         var response = new DeliveryNoteFileResponse { FileId = Guid.NewGuid() };
-        _mockService.Setup(x => x.AddFileAsync("DN-1", fileMock.Object, Maliev.DeliveryService.Data.Entities.FileType.Photo, "Desc", "test-user", It.IsAny<CancellationToken>()))
+        _mockService.Setup(x => x.AddFileAsync("DN-1", fileMock.Object, Maliev.DeliveryService.Domain.Entities.FileType.Photo, "Desc", "test-user", It.IsAny<CancellationToken>()))
             .ReturnsAsync(response);
 
         // Act
@@ -315,7 +315,7 @@ public class DeliveryNotesControllerTests
     public async Task UploadFile_ServiceNotFound_ReturnsNotFound()
     {
         // Arrange
-        _mockService.Setup(x => x.AddFileAsync(It.IsAny<string>(), It.IsAny<IFormFile>(), It.IsAny<Maliev.DeliveryService.Data.Entities.FileType>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _mockService.Setup(x => x.AddFileAsync(It.IsAny<string>(), It.IsAny<IFormFile>(), It.IsAny<Maliev.DeliveryService.Domain.Entities.FileType>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("not found"));
 
         // Act
@@ -329,7 +329,7 @@ public class DeliveryNotesControllerTests
     public async Task UploadFile_ServiceArgumentException_ReturnsBadRequest()
     {
         // Arrange
-        _mockService.Setup(x => x.AddFileAsync(It.IsAny<string>(), It.IsAny<IFormFile>(), It.IsAny<Maliev.DeliveryService.Data.Entities.FileType>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _mockService.Setup(x => x.AddFileAsync(It.IsAny<string>(), It.IsAny<IFormFile>(), It.IsAny<Maliev.DeliveryService.Domain.Entities.FileType>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new ArgumentException("Invalid file"));
 
         // Act

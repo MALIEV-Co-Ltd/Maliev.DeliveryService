@@ -1,12 +1,14 @@
-using Maliev.DeliveryService.Api.Consumers;
-using Maliev.DeliveryService.Api.DTOs;
-using Maliev.DeliveryService.Api.Services;
-using Maliev.DeliveryService.Data;
-using Maliev.DeliveryService.Data.Entities;
-using Maliev.MessagingContracts.Contracts.Orders;
 using Maliev.MessagingContracts;
+using Maliev.DeliveryService.Infrastructure.Consumers;
+using Maliev.DeliveryService.Application.DTOs;
+using Maliev.DeliveryService.Application.Abstractions;
+using Maliev.DeliveryService.Infrastructure.Services;
+using Maliev.DeliveryService.Infrastructure.Persistence;
+using Maliev.DeliveryService.Domain.Entities;
+using Maliev.MessagingContracts.Contracts.Orders;
 using MassTransit;
 using MassTransit.Testing;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -25,10 +27,10 @@ public class OrderCompletedEventConsumerTests
         _mockDeliveryService = new Mock<IDeliveryNoteService>();
         _mockLogger = new Mock<ILogger<OrderCompletedEventConsumer>>();
 
-        // Create a unique DB name for each test instance to avoid collisions
+        var connection = new SqliteConnection("Data Source=:memory:");
+        connection.Open();
         var options = new DbContextOptionsBuilder<DeliveryDbContext>()
-            .UseInMemoryDatabase(databaseName: $"ConsumerTestDb_{Guid.NewGuid()}")
-            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
+            .UseSqlite(connection)
             .Options;
         _dbContext = new DeliveryDbContext(options);
     }

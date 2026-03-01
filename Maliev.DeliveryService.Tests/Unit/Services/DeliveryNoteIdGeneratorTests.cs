@@ -1,6 +1,8 @@
-using Maliev.DeliveryService.Api.Services;
-using Maliev.DeliveryService.Data;
-using Maliev.DeliveryService.Data.Entities;
+using Maliev.DeliveryService.Application.Abstractions;
+using Maliev.DeliveryService.Infrastructure.Services;
+using Maliev.DeliveryService.Infrastructure.Persistence;
+using Maliev.DeliveryService.Domain.Entities;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -13,9 +15,10 @@ public class DeliveryNoteIdGeneratorTests : IDisposable
 
     public DeliveryNoteIdGeneratorTests()
     {
+        var connection = new SqliteConnection("Data Source=:memory:");
+        connection.Open();
         var options = new DbContextOptionsBuilder<DeliveryDbContext>()
-            .UseInMemoryDatabase(databaseName: $"IdGenTestDb_{Guid.NewGuid()}")
-            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
+            .UseSqlite(connection)
             .Options;
         _context = new DeliveryDbContext(options);
         _generator = new DeliveryNoteIdGenerator(_context);

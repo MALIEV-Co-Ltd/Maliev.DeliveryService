@@ -1,4 +1,5 @@
-using Maliev.DeliveryService.Api.Clients;
+using Maliev.DeliveryService.Application.Abstractions;
+using Maliev.DeliveryService.Infrastructure.HttpClients;
 using Microsoft.Extensions.Logging;
 using Moq;
 using System.Net;

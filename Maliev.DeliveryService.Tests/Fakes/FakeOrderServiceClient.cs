@@ -1,5 +1,5 @@
-using Maliev.DeliveryService.Api.Clients;
-using Maliev.DeliveryService.Api.DTOs;
+using Maliev.DeliveryService.Application.Abstractions;
+using Maliev.DeliveryService.Application.DTOs;
 
 namespace Maliev.DeliveryService.Tests.Fakes;
 

@@ -1,9 +1,10 @@
-using Maliev.DeliveryService.Api.Clients;
-using Maliev.DeliveryService.Api.DTOs;
-using Maliev.DeliveryService.Api.Services;
-using Maliev.DeliveryService.Data;
-using Maliev.DeliveryService.Data.Entities;
+using Maliev.DeliveryService.Application.Abstractions;
+using Maliev.DeliveryService.Application.DTOs;
+using Maliev.DeliveryService.Infrastructure.Services;
+using Maliev.DeliveryService.Infrastructure.Persistence;
+using Maliev.DeliveryService.Domain.Entities;
 using Maliev.DeliveryService.Tests.Fakes;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Memory;
@@ -25,10 +26,10 @@ public class DeliveryNoteServiceTests : IDisposable
 
     public DeliveryNoteServiceTests()
     {
-        // Use in-memory database for unit tests
+        var connection = new SqliteConnection("Data Source=:memory:");
+        connection.Open();
         var options = new DbContextOptionsBuilder<DeliveryDbContext>()
-            .UseInMemoryDatabase(databaseName: $"TestDb_{Guid.NewGuid()}")
-            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
+            .UseSqlite(connection)
             .Options;
 
         _context = new DeliveryDbContext(options);

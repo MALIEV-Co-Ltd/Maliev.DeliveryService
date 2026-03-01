@@ -1,4 +1,4 @@
-using Maliev.DeliveryService.Data;
+using Maliev.DeliveryService.Infrastructure.Persistence;
 using Maliev.DeliveryService.Tests.Integration.TestFixtures;
 using Microsoft.Extensions.DependencyInjection;
 

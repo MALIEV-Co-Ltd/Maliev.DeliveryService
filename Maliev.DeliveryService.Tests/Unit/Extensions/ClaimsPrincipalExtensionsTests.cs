@@ -69,4 +69,32 @@ public class ClaimsPrincipalExtensionsTests
         Assert.Contains(id1, result);
         Assert.Contains(id2, result);
     }
+
+    [Fact]
+    public void GetCustomerIds_NoClaims_ReturnsEmptyList()
+    {
+        // Arrange
+        var principal = new ClaimsPrincipal(new ClaimsIdentity());
+
+        // Act
+        var result = principal.GetCustomerIds();
+
+        // Assert
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void GetPrincipalId_ReturnsUserId()
+    {
+        // Arrange
+        var claims = new[] { new Claim("sub", "user-123") };
+        var identity = new ClaimsIdentity(claims);
+        var principal = new ClaimsPrincipal(identity);
+
+        // Act
+        var result = principal.GetPrincipalId();
+
+        // Assert
+        Assert.Equal("user-123", result);
+    }
 }

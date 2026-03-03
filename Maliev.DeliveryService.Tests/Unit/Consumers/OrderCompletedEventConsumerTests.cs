@@ -16,10 +16,11 @@ using Xunit;
 
 namespace Maliev.DeliveryService.Tests.Unit.Consumers;
 
-public class OrderCompletedEventConsumerTests
+public class OrderCompletedEventConsumerTests : IDisposable
 {
     private readonly Mock<IDeliveryNoteService> _mockDeliveryService;
     private readonly DeliveryDbContext _dbContext;
+    private readonly SqliteConnection _connection;
     private readonly Mock<ILogger<OrderCompletedEventConsumer>> _mockLogger;
 
     public OrderCompletedEventConsumerTests()
@@ -27,12 +28,13 @@ public class OrderCompletedEventConsumerTests
         _mockDeliveryService = new Mock<IDeliveryNoteService>();
         _mockLogger = new Mock<ILogger<OrderCompletedEventConsumer>>();
 
-        var connection = new SqliteConnection("Data Source=:memory:");
-        connection.Open();
+        _connection = new SqliteConnection("Data Source=:memory:");
+        _connection.Open();
         var options = new DbContextOptionsBuilder<DeliveryDbContext>()
-            .UseSqlite(connection)
+            .UseSqlite(_connection)
             .Options;
         _dbContext = new DeliveryDbContext(options);
+        _dbContext.Database.EnsureCreated();
     }
 
     [Fact]
@@ -178,5 +180,12 @@ public class OrderCompletedEventConsumerTests
         {
             await harness.Stop();
         }
+    }
+
+    public void Dispose()
+    {
+        _dbContext.Database.EnsureDeleted();
+        _dbContext.Dispose();
+        _connection.Dispose();
     }
 }

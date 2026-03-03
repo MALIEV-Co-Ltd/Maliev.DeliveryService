@@ -18,6 +18,7 @@ namespace Maliev.DeliveryService.Tests.Unit.Services;
 public class DeliveryNoteServiceTests : IDisposable
 {
     private readonly DeliveryDbContext _context;
+    private readonly SqliteConnection _connection;
     private readonly DeliveryNoteService _service;
     private readonly FakePublishEndpoint _fakePublishEndpoint;
     private readonly FakeOrderServiceClient _fakeOrderServiceClient;
@@ -26,13 +27,14 @@ public class DeliveryNoteServiceTests : IDisposable
 
     public DeliveryNoteServiceTests()
     {
-        var connection = new SqliteConnection("Data Source=:memory:");
-        connection.Open();
+        _connection = new SqliteConnection("Data Source=:memory:");
+        _connection.Open();
         var options = new DbContextOptionsBuilder<DeliveryDbContext>()
-            .UseSqlite(connection)
+            .UseSqlite(_connection)
             .Options;
 
         _context = new DeliveryDbContext(options);
+        _context.Database.EnsureCreated();
         _fakePublishEndpoint = new FakePublishEndpoint();
         _fakeOrderServiceClient = new FakeOrderServiceClient();
         _fakeFileStorageService = new FakeFileStorageService();
@@ -470,7 +472,6 @@ public class DeliveryNoteServiceTests : IDisposable
         };
         var created = await _service.CreateAsync(createRequest, "test-user");
 
-        var fileMock = new Mock<Microsoft.AspNetCore.Http.IFormFile>();
         var content = "fake content";
         var fileName = "test.png";
         var ms = new MemoryStream();
@@ -479,13 +480,10 @@ public class DeliveryNoteServiceTests : IDisposable
         writer.Flush();
         ms.Position = 0;
 
-        fileMock.Setup(_ => _.OpenReadStream()).Returns(ms);
-        fileMock.Setup(_ => _.FileName).Returns(fileName);
-        fileMock.Setup(_ => _.Length).Returns(ms.Length);
-        fileMock.Setup(_ => _.ContentType).Returns("image/png");
+        var fileData = new TestFileData(ms, fileName, ms.Length, "image/png");
 
         // Act
-        var result = await _service.AddFileAsync(created.DeliveryNoteId, fileMock.Object, FileType.Photo, "Test file", "test-user");
+        var result = await _service.AddFileAsync(created.DeliveryNoteId, fileData, FileType.Photo, "Test file", "test-user");
 
         // Assert
         Assert.NotNull(result);
@@ -534,8 +532,11 @@ public class DeliveryNoteServiceTests : IDisposable
     [Fact]
     public async Task AddFileAsync_FileNotFound_ThrowsInvalidOperationException()
     {
+        // Arrange
+        var fileData = new TestFileData(new MemoryStream(), "test.png", 1024, "image/png");
+        
         // Act & Assert
-        await Assert.ThrowsAsync<InvalidOperationException>(() => _service.AddFileAsync("NON-EXISTENT", Mock.Of<Microsoft.AspNetCore.Http.IFormFile>(), FileType.Other, null, "user"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _service.AddFileAsync("NON-EXISTENT", fileData, FileType.Other, null, "user"));
     }
 
     [Fact]
@@ -543,11 +544,12 @@ public class DeliveryNoteServiceTests : IDisposable
     {
         // Arrange
         var created = await CreateTestDeliveryNote();
-        var fileMock = new Mock<Microsoft.AspNetCore.Http.IFormFile>();
-        fileMock.Setup(_ => _.Length).Returns(10 * 1024 * 1024); // 10MB > 5MB limit
+        var ms = new MemoryStream();
+        ms.SetLength(10 * 1024 * 1024); // 10MB > 5MB limit
+        var fileData = new TestFileData(ms, "test.png", 10 * 1024 * 1024, "image/png");
 
         // Act & Assert
-        await Assert.ThrowsAsync<ArgumentException>(() => _service.AddFileAsync(created.DeliveryNoteId, fileMock.Object, FileType.Other, null, "user"));
+        await Assert.ThrowsAsync<ArgumentException>(() => _service.AddFileAsync(created.DeliveryNoteId, fileData, FileType.Other, null, "user"));
     }
 
     [Fact]
@@ -555,16 +557,14 @@ public class DeliveryNoteServiceTests : IDisposable
     {
         // Arrange
         var created = await CreateTestDeliveryNote();
-        var fileMock = new Mock<Microsoft.AspNetCore.Http.IFormFile>();
-        fileMock.Setup(_ => _.Length).Returns(1024);
-        fileMock.Setup(_ => _.ContentType).Returns("image/png");
-        fileMock.Setup(_ => _.FileName).Returns("test.png");
-        fileMock.Setup(_ => _.OpenReadStream()).Returns(new MemoryStream());
+        var ms = new MemoryStream();
+        ms.SetLength(1024);
+        var fileData = new TestFileData(new MemoryStream(), "test.png", 1024, "image/png");
 
         _fakeFileStorageService.SetThrowError(true);
 
         // Act & Assert
-        await Assert.ThrowsAsync<InvalidOperationException>(() => _service.AddFileAsync(created.DeliveryNoteId, fileMock.Object, FileType.Other, null, "user"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _service.AddFileAsync(created.DeliveryNoteId, fileData, FileType.Other, null, "user"));
     }
 
     [Fact]
@@ -597,6 +597,502 @@ public class DeliveryNoteServiceTests : IDisposable
         Assert.Equal("Retry Carrier", result.CarrierName);
     }
 
+    [Fact]
+    public async Task GetFilesAsync_WithFiles_ReturnsFileList()
+    {
+        // Arrange
+        var created = await CreateTestDeliveryNote();
+        
+        // Add a file
+        var ms = new MemoryStream();
+        ms.SetLength(1024);
+        var fileData = new TestFileData(ms, "test.png", 1024, "image/png");
+        
+        await _service.AddFileAsync(created.DeliveryNoteId, fileData, FileType.Photo, "Test file", "user");
+
+        // Act
+        var files = await _service.GetFilesAsync(created.DeliveryNoteId);
+
+        // Assert
+        Assert.Single(files);
+        Assert.Equal("test.png", files[0].OriginalFileName);
+    }
+
+    [Fact]
+    public async Task GetFilesAsync_Empty_ReturnsEmptyList()
+    {
+        // Arrange
+        var created = await CreateTestDeliveryNote();
+
+        // Act
+        var files = await _service.GetFilesAsync(created.DeliveryNoteId);
+
+        // Assert
+        Assert.Empty(files);
+    }
+
+    [Fact]
+    public async Task SearchAsync_WithOrderIdFilter_ReturnsFilteredResult()
+    {
+        // Arrange
+        var orderId = "ORD-SEARCH-TEST";
+        _context.DeliveryNotes.Add(new DeliveryNote
+        {
+            DeliveryNoteId = "DN-S2",
+            OrderId = orderId,
+            CustomerId = Guid.NewGuid(),
+            CustomerName = "Search Test",
+            Status = DeliveryStatus.Pending,
+            DeliveryDate = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow,
+            CreatedBy = "test"
+        });
+        _context.DeliveryNotes.Add(new DeliveryNote
+        {
+            DeliveryNoteId = "DN-S3",
+            OrderId = "OTHER-ORDER",
+            CustomerId = Guid.NewGuid(),
+            CustomerName = "Other Customer",
+            Status = DeliveryStatus.Pending,
+            DeliveryDate = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow,
+            CreatedBy = "test"
+        });
+        await _context.SaveChangesAsync();
+
+        var filter = new DeliveryNoteFilterRequest
+        {
+            OrderId = orderId,
+            Page = 1,
+            PageSize = 10
+        };
+
+        // Act
+        var result = await _service.SearchAsync(filter, "test-user");
+
+        // Assert
+        Assert.Equal(1, result.TotalCount);
+        Assert.Single(result.Items);
+        Assert.Equal(orderId, result.Items[0].OrderId);
+    }
+
+    [Fact]
+    public async Task SearchAsync_WithStatusFilter_ReturnsFilteredResult()
+    {
+        // Arrange
+        _context.DeliveryNotes.Add(new DeliveryNote
+        {
+            DeliveryNoteId = "DN-S4",
+            OrderId = "ORD-1",
+            CustomerId = Guid.NewGuid(),
+            CustomerName = "Test",
+            Status = DeliveryStatus.Pending,
+            DeliveryDate = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow,
+            CreatedBy = "test"
+        });
+        _context.DeliveryNotes.Add(new DeliveryNote
+        {
+            DeliveryNoteId = "DN-S5",
+            OrderId = "ORD-2",
+            CustomerId = Guid.NewGuid(),
+            CustomerName = "Test",
+            Status = DeliveryStatus.Delivered,
+            DeliveryDate = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow,
+            CreatedBy = "test"
+        });
+        await _context.SaveChangesAsync();
+
+        var filter = new DeliveryNoteFilterRequest
+        {
+            Status = "Pending",
+            Page = 1,
+            PageSize = 10
+        };
+
+        // Act
+        var result = await _service.SearchAsync(filter, "test-user");
+
+        // Assert
+        Assert.Equal(1, result.TotalCount);
+        Assert.Equal("Pending", result.Items[0].Status);
+    }
+
+    [Fact]
+    public async Task SearchAsync_WithDateRangeFilter_ReturnsFilteredResult()
+    {
+        // Arrange
+        var now = DateTime.UtcNow;
+        _context.DeliveryNotes.Add(new DeliveryNote
+        {
+            DeliveryNoteId = "DN-S6",
+            OrderId = "ORD-1",
+            CustomerId = Guid.NewGuid(),
+            CustomerName = "Test",
+            Status = DeliveryStatus.Pending,
+            DeliveryDate = now.AddDays(-5),
+            CreatedAt = now,
+            CreatedBy = "test"
+        });
+        _context.DeliveryNotes.Add(new DeliveryNote
+        {
+            DeliveryNoteId = "DN-S7",
+            OrderId = "ORD-2",
+            CustomerId = Guid.NewGuid(),
+            CustomerName = "Test",
+            Status = DeliveryStatus.Pending,
+            DeliveryDate = now.AddDays(5),
+            CreatedAt = now,
+            CreatedBy = "test"
+        });
+        await _context.SaveChangesAsync();
+
+        var filter = new DeliveryNoteFilterRequest
+        {
+            DeliveryDateFrom = now.AddDays(-7),
+            DeliveryDateTo = now,
+            Page = 1,
+            PageSize = 10
+        };
+
+        // Act
+        var result = await _service.SearchAsync(filter, "test-user");
+
+        // Assert
+        Assert.Equal(1, result.TotalCount);
+    }
+
+    [Fact]
+    public async Task UpdateStatusAsync_ToDelivered_PublishesDeliveryCompletedEvent()
+    {
+        // Arrange
+        var createRequest = new CreateDeliveryNoteRequest
+        {
+            OrderId = "ORD-DELIVERED-EVENT",
+            CustomerId = Guid.NewGuid(),
+            DeliveryDate = DateTime.UtcNow.AddDays(1),
+            Items = new List<CreateDeliveryNoteItemRequest>
+            {
+                new()
+                {
+                    ProductCode = "PROD-001",
+                    ProductName = "Test Product",
+                    QuantityOrdered = 100,
+                    QuantityManufactured = 100,
+                    QuantityDelivered = 100,
+                    UnitOfMeasure = "pcs"
+                }
+            }
+        };
+
+        var created = await _service.CreateAsync(createRequest, "test-user");
+        _fakePublishEndpoint.Clear();
+
+        // Transition Pending -> InTransit -> Delivered
+        await _service.UpdateStatusAsync(created.DeliveryNoteId,
+            new UpdateDeliveryStatusRequest { NewStatus = "InTransit" }, "test-user");
+        await _service.UpdateStatusAsync(created.DeliveryNoteId,
+            new UpdateDeliveryStatusRequest { NewStatus = "Delivered", ReceivedByName = "John Doe" }, "test-user");
+
+        // Verify delivery completed event was published
+        var completedEvents = _fakePublishEndpoint.GetPublishedMessages<Maliev.MessagingContracts.Contracts.Delivery.DeliveryCompletedEvent>();
+        Assert.Single(completedEvents);
+    }
+
+    [Fact]
+    public async Task UpdateStatusAsync_ToInTransit_PublishesStatusChangedEvent()
+    {
+        // Arrange
+        var created = await CreateTestDeliveryNote();
+        _fakePublishEndpoint.Clear();
+
+        // Act
+        await _service.UpdateStatusAsync(created.DeliveryNoteId,
+            new UpdateDeliveryStatusRequest { NewStatus = "InTransit" }, "test-user");
+
+        // Assert
+        var statusChangedEvents = _fakePublishEndpoint.GetPublishedMessages<Maliev.MessagingContracts.Contracts.Delivery.DeliveryStatusChangedEvent>();
+        Assert.Single(statusChangedEvents);
+    }
+
+    [Fact]
+    public async Task AddFileAsync_InvalidContentType_ThrowsArgumentException()
+    {
+        // Arrange
+        var created = await CreateTestDeliveryNote();
+        var ms = new MemoryStream();
+        ms.SetLength(1024);
+        var fileData = new TestFileData(ms, "test.exe", 1024, "application/octet-stream"); // Not allowed
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentException>(() => 
+            _service.AddFileAsync(created.DeliveryNoteId, fileData, FileType.Other, null, "user"));
+    }
+
+    [Fact]
+    public async Task CreateDeliveryNoteAsync_WithCumulativeQuantityValidation_Success()
+    {
+        // Arrange - Create first partial delivery
+        var orderId = "ORD-CUMULATIVE-TEST";
+        var firstRequest = new CreateDeliveryNoteRequest
+        {
+            OrderId = orderId,
+            CustomerId = Guid.NewGuid(),
+            DeliveryDate = DateTime.UtcNow.AddDays(1),
+            Items = new List<CreateDeliveryNoteItemRequest>
+            {
+                new()
+                {
+                    ProductCode = "PROD-CUM",
+                    ProductName = "Test Product",
+                    QuantityOrdered = 100,
+                    QuantityManufactured = 100,
+                    QuantityDelivered = 50, // First delivery: 50
+                    UnitOfMeasure = "pcs"
+                }
+            }
+        };
+        await _service.CreateAsync(firstRequest, "test-user");
+
+        // Try to create second delivery that exceeds total
+        var secondRequest = new CreateDeliveryNoteRequest
+        {
+            OrderId = orderId,
+            CustomerId = Guid.NewGuid(),
+            DeliveryDate = DateTime.UtcNow.AddDays(1),
+            Items = new List<CreateDeliveryNoteItemRequest>
+            {
+                new()
+                {
+                    ProductCode = "PROD-CUM",
+                    ProductName = "Test Product",
+                    QuantityOrdered = 100,
+                    QuantityManufactured = 100,
+                    QuantityDelivered = 60, // Second delivery: 60, total = 110 > 100!
+                    UnitOfMeasure = "pcs"
+                }
+            }
+        };
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() => 
+            _service.CreateAsync(secondRequest, "test-user"));
+        Assert.Contains("exceeds ordered quantity", exception.Message);
+    }
+
+    [Fact]
+    public async Task UpdateStatusAsync_FromPendingToCancelled_Success()
+    {
+        // Arrange
+        var created = await CreateTestDeliveryNote();
+
+        // Act
+        var result = await _service.UpdateStatusAsync(created.DeliveryNoteId,
+            new UpdateDeliveryStatusRequest { NewStatus = "Cancelled" }, "test-user");
+
+        // Assert
+        Assert.Equal("Cancelled", result.Status);
+    }
+
+    [Fact]
+    public async Task SoftDeleteAsync_DeletesAssociatedFiles()
+    {
+        // Arrange
+        var created = await CreateTestDeliveryNote();
+        
+        // Add a file
+        var ms = new MemoryStream();
+        ms.SetLength(1024);
+        var fileData = new TestFileData(ms, "test.png", 1024, "image/png");
+        
+        await _service.AddFileAsync(created.DeliveryNoteId, fileData, FileType.Photo, "Test file", "user");
+
+        // Act
+        await _service.SoftDeleteAsync(created.DeliveryNoteId, "test-user");
+
+        // Assert - Verify files are also deleted
+        var files = await _context.DeliveryNoteFiles
+            .Where(f => f.DeliveryNoteId == created.DeliveryNoteId)
+            .ToListAsync();
+        
+        Assert.All(files, f => Assert.True(f.IsDeleted));
+    }
+
+    [Fact]
+    public async Task SearchAsync_SortByCreatedAtAsc_ReturnsSortedResult()
+    {
+        // Arrange
+        var now = DateTime.UtcNow;
+        _context.DeliveryNotes.Add(new DeliveryNote
+        {
+            DeliveryNoteId = "DN-S8",
+            OrderId = "ORD-1",
+            CustomerId = Guid.NewGuid(),
+            CustomerName = "Test",
+            Status = DeliveryStatus.Pending,
+            DeliveryDate = now,
+            CreatedAt = now.AddDays(-1),
+            CreatedBy = "test"
+        });
+        _context.DeliveryNotes.Add(new DeliveryNote
+        {
+            DeliveryNoteId = "DN-S9",
+            OrderId = "ORD-2",
+            CustomerId = Guid.NewGuid(),
+            CustomerName = "Test",
+            Status = DeliveryStatus.Pending,
+            DeliveryDate = now,
+            CreatedAt = now,
+            CreatedBy = "test"
+        });
+        await _context.SaveChangesAsync();
+
+        var filter = new DeliveryNoteFilterRequest
+        {
+            SortBy = "created_at",
+            SortOrder = "asc",
+            Page = 1,
+            PageSize = 10
+        };
+
+        // Act
+        var result = await _service.SearchAsync(filter, "test-user");
+
+        // Assert
+        Assert.Equal(2, result.TotalCount);
+        Assert.Equal("DN-S8", result.Items[0].DeliveryNoteId);
+    }
+
+    [Fact]
+    public async Task SearchAsync_SortByDeliveryDateDesc_ReturnsSortedResult()
+    {
+        // Arrange
+        var now = DateTime.UtcNow;
+        _context.DeliveryNotes.Add(new DeliveryNote
+        {
+            DeliveryNoteId = "DN-S10",
+            OrderId = "ORD-1",
+            CustomerId = Guid.NewGuid(),
+            CustomerName = "Test",
+            Status = DeliveryStatus.Pending,
+            DeliveryDate = now.AddDays(-1),
+            CreatedAt = now,
+            CreatedBy = "test"
+        });
+        _context.DeliveryNotes.Add(new DeliveryNote
+        {
+            DeliveryNoteId = "DN-S11",
+            OrderId = "ORD-2",
+            CustomerId = Guid.NewGuid(),
+            CustomerName = "Test",
+            Status = DeliveryStatus.Pending,
+            DeliveryDate = now.AddDays(1),
+            CreatedAt = now,
+            CreatedBy = "test"
+        });
+        await _context.SaveChangesAsync();
+
+        var filter = new DeliveryNoteFilterRequest
+        {
+            SortBy = "delivery_date",
+            SortOrder = "desc",
+            Page = 1,
+            PageSize = 10
+        };
+
+        // Act
+        var result = await _service.SearchAsync(filter, "test-user");
+
+        // Assert
+        Assert.Equal(2, result.TotalCount);
+        Assert.Equal("DN-S11", result.Items[0].DeliveryNoteId);
+    }
+
+    [Fact]
+    public async Task UpdateStatusAsync_FromCancelledToInTransit_ThrowsInvalidOperation()
+    {
+        // Arrange
+        var created = await CreateTestDeliveryNote();
+        
+        // Transition to Cancelled first
+        await _service.UpdateStatusAsync(created.DeliveryNoteId,
+            new UpdateDeliveryStatusRequest { NewStatus = "Cancelled" }, "test-user");
+
+        // Act & Assert - Try to transition from Cancelled -> InTransit (invalid!)
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _service.UpdateStatusAsync(created.DeliveryNoteId,
+                new UpdateDeliveryStatusRequest { NewStatus = "InTransit" }, "test-user"));
+
+        Assert.Contains("Cannot transition from terminal status", exception.Message);
+    }
+
+    [Fact]
+    public async Task UpdateStatusAsync_FromInTransitToPartiallyDelivered_Success()
+    {
+        // Arrange
+        var created = await CreateTestDeliveryNote();
+        
+        // Transition Pending -> InTransit
+        await _service.UpdateStatusAsync(created.DeliveryNoteId,
+            new UpdateDeliveryStatusRequest { NewStatus = "InTransit" }, "test-user");
+
+        // Act - Transition InTransit -> PartiallyDelivered
+        var result = await _service.UpdateStatusAsync(created.DeliveryNoteId,
+            new UpdateDeliveryStatusRequest { NewStatus = "PartiallyDelivered" }, "test-user");
+
+        // Assert
+        Assert.Equal("PartiallyDelivered", result.Status);
+    }
+
+    [Fact]
+    public async Task UpdateStatusAsync_FromPartiallyDeliveredToDelivered_Success()
+    {
+        // Arrange
+        var created = await CreateTestDeliveryNote();
+        
+        // Transition Pending -> InTransit -> PartiallyDelivered
+        await _service.UpdateStatusAsync(created.DeliveryNoteId,
+            new UpdateDeliveryStatusRequest { NewStatus = "InTransit" }, "test-user");
+        await _service.UpdateStatusAsync(created.DeliveryNoteId,
+            new UpdateDeliveryStatusRequest { NewStatus = "PartiallyDelivered" }, "test-user");
+
+        // Act - Transition PartiallyDelivered -> Delivered
+        var result = await _service.UpdateStatusAsync(created.DeliveryNoteId,
+            new UpdateDeliveryStatusRequest { NewStatus = "Delivered", ReceivedByName = "Jane Doe" }, "test-user");
+
+        // Assert
+        Assert.Equal("Delivered", result.Status);
+    }
+
+    [Fact]
+    public async Task UpdateStatusAsync_FromPartiallyDeliveredToCancelled_Success()
+    {
+        // Arrange
+        var created = await CreateTestDeliveryNote();
+        
+        // Transition Pending -> InTransit -> PartiallyDelivered
+        await _service.UpdateStatusAsync(created.DeliveryNoteId,
+            new UpdateDeliveryStatusRequest { NewStatus = "InTransit" }, "test-user");
+        await _service.UpdateStatusAsync(created.DeliveryNoteId,
+            new UpdateDeliveryStatusRequest { NewStatus = "PartiallyDelivered" }, "test-user");
+
+        // Act - Transition PartiallyDelivered -> Cancelled
+        var result = await _service.UpdateStatusAsync(created.DeliveryNoteId,
+            new UpdateDeliveryStatusRequest { NewStatus = "Cancelled" }, "test-user");
+
+        // Assert
+        Assert.Equal("Cancelled", result.Status);
+    }
+
+    [Fact]
+    public async Task SoftDeleteAsync_NotFound_ThrowsInvalidOperationException()
+    {
+        // Act & Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(() => 
+            _service.SoftDeleteAsync("NON-EXISTENT", "test-user"));
+    }
+
     private async Task<DeliveryNoteResponse> CreateTestDeliveryNote()
     {
         var request = new CreateDeliveryNoteRequest
@@ -613,6 +1109,7 @@ public class DeliveryNoteServiceTests : IDisposable
     {
         _context.Database.EnsureDeleted();
         _context.Dispose();
+        _connection.Dispose();
     }
 
     // Fake authorization service for testing

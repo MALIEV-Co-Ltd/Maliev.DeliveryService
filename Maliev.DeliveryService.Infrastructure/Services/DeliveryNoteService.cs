@@ -4,7 +4,6 @@ using Maliev.DeliveryService.Domain.Entities;
 using Maliev.DeliveryService.Infrastructure.Persistence;
 using Maliev.MessagingContracts.Contracts.Delivery;
 using MassTransit;
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
@@ -332,7 +331,7 @@ public class DeliveryNoteService : IDeliveryNoteService
 
     public async Task<DeliveryNoteFileResponse> AddFileAsync(
         string deliveryNoteId,
-        IFormFile file,
+        IFileData file,
         FileType fileType,
         string? description,
         string uploadedBy,

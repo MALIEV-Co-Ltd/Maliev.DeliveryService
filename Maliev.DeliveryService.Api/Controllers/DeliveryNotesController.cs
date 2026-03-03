@@ -2,6 +2,7 @@ using Asp.Versioning;
 using Maliev.DeliveryService.Application.DTOs;
 using Maliev.DeliveryService.Api.Authorization;
 using Maliev.DeliveryService.Api.Extensions;
+using Maliev.DeliveryService.Api.Adapters;
 using Maliev.DeliveryService.Application.Abstractions;
 using Maliev.DeliveryService.Domain.Entities;
 using Maliev.Aspire.ServiceDefaults.Authorization;
@@ -211,7 +212,8 @@ public class DeliveryNotesController : ControllerBase
             }
 
             var userId = User.GetUserId();
-            var result = await _deliveryNoteService.AddFileAsync(id, file, fileTypeEnum, description, userId, ct);
+            var fileData = new FormFileAdapter(file);
+            var result = await _deliveryNoteService.AddFileAsync(id, fileData, fileTypeEnum, description, userId, ct);
 
             return CreatedAtAction(
                 nameof(GetFiles),

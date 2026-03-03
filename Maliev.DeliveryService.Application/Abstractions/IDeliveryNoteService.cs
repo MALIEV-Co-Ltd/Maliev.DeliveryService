@@ -1,6 +1,5 @@
 using Maliev.DeliveryService.Application.DTOs;
 using Maliev.DeliveryService.Domain.Entities;
-using Microsoft.AspNetCore.Http;
 
 namespace Maliev.DeliveryService.Application.Abstractions;
 
@@ -10,7 +9,7 @@ public interface IDeliveryNoteService
     Task<DeliveryNoteResponse?> GetByIdAsync(string deliveryNoteId, CancellationToken ct = default);
     Task<DeliveryNoteResponse> UpdateStatusAsync(string deliveryNoteId, UpdateDeliveryStatusRequest request, string updatedBy, CancellationToken ct = default);
     Task<PaginatedResponse<DeliveryNoteSummaryDto>> SearchAsync(DeliveryNoteFilterRequest filter, string principalId, CancellationToken ct = default);
-    Task<DeliveryNoteFileResponse> AddFileAsync(string deliveryNoteId, IFormFile file, FileType fileType, string? description, string uploadedBy, CancellationToken ct = default);
+    Task<DeliveryNoteFileResponse> AddFileAsync(string deliveryNoteId, IFileData file, FileType fileType, string? description, string uploadedBy, CancellationToken ct = default);
     Task<List<DeliveryNoteFileResponse>> GetFilesAsync(string deliveryNoteId, CancellationToken ct = default);
     Task<DeliveryNoteResponse> UpdateAsync(string deliveryNoteId, UpdateDeliveryNoteRequest request, string updatedBy, CancellationToken ct = default);
     Task SoftDeleteAsync(string deliveryNoteId, string deletedBy, CancellationToken ct = default);

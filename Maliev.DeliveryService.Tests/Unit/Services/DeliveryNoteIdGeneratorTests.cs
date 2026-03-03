@@ -11,16 +11,18 @@ namespace Maliev.DeliveryService.Tests.Unit.Services;
 public class DeliveryNoteIdGeneratorTests : IDisposable
 {
     private readonly DeliveryDbContext _context;
+    private readonly SqliteConnection _connection;
     private readonly DeliveryNoteIdGenerator _generator;
 
     public DeliveryNoteIdGeneratorTests()
     {
-        var connection = new SqliteConnection("Data Source=:memory:");
-        connection.Open();
+        _connection = new SqliteConnection("Data Source=:memory:");
+        _connection.Open();
         var options = new DbContextOptionsBuilder<DeliveryDbContext>()
-            .UseSqlite(connection)
+            .UseSqlite(_connection)
             .Options;
         _context = new DeliveryDbContext(options);
+        _context.Database.EnsureCreated();
         _generator = new DeliveryNoteIdGenerator(_context);
     }
 
@@ -82,5 +84,6 @@ public class DeliveryNoteIdGeneratorTests : IDisposable
     {
         _context.Database.EnsureDeleted();
         _context.Dispose();
+        _connection.Dispose();
     }
 }

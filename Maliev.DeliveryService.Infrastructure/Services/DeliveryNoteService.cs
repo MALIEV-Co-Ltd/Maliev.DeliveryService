@@ -2,6 +2,7 @@ using Maliev.DeliveryService.Application.Abstractions;
 using Maliev.DeliveryService.Application.DTOs;
 using Maliev.DeliveryService.Domain.Entities;
 using Maliev.DeliveryService.Infrastructure.Persistence;
+using Maliev.MessagingContracts;
 using Maliev.MessagingContracts.Contracts.Delivery;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -86,7 +87,7 @@ public class DeliveryNoteService : IDeliveryNoteService
         await PublishEventAsync(new DeliveryNoteCreatedEvent(
             Guid.NewGuid(),
             nameof(DeliveryNoteCreatedEvent),
-            Maliev.MessagingContracts.MessageType.Event,
+            MessageType.Event,
             "1.0",
             "DeliveryService",
             Array.Empty<string>(),
@@ -284,7 +285,7 @@ public class DeliveryNoteService : IDeliveryNoteService
         await PublishEventAsync(new DeliveryStatusChangedEvent(
             Guid.NewGuid(),
             nameof(DeliveryStatusChangedEvent),
-            Maliev.MessagingContracts.MessageType.Event,
+            MessageType.Event,
             "1.0",
             "DeliveryService",
             Array.Empty<string>(),
@@ -309,7 +310,7 @@ public class DeliveryNoteService : IDeliveryNoteService
             await PublishEventAsync(new DeliveryCompletedEvent(
                 Guid.NewGuid(),
                 nameof(DeliveryCompletedEvent),
-                Maliev.MessagingContracts.MessageType.Event,
+                MessageType.Event,
                 "1.0",
                 "DeliveryService",
                 Array.Empty<string>(),

@@ -6,6 +6,7 @@ using Maliev.DeliveryService.Api.Adapters;
 using Maliev.DeliveryService.Application.Abstractions;
 using Maliev.DeliveryService.Domain.Entities;
 using Maliev.Aspire.ServiceDefaults.Authorization;
+using Maliev.MessagingContracts;
 using Maliev.MessagingContracts.Contracts.Delivery;
 using MassTransit;
 using Microsoft.AspNetCore.Mvc;
@@ -157,7 +158,7 @@ public class DeliveryNotesController : ControllerBase
             await _publishEndpoint.Publish(new DeliveryNotePdfRequestedEvent(
                 Guid.NewGuid(),
                 nameof(DeliveryNotePdfRequestedEvent),
-                Maliev.MessagingContracts.MessageType.Event,
+                MessageType.Event,
                 "1.0",
                 "DeliveryService",
                 Array.Empty<string>(),

@@ -1,6 +1,10 @@
-using Maliev.DeliveryService.Api.Clients;
-using Maliev.DeliveryService.Api.Services;
-using Maliev.DeliveryService.Data;
+using Maliev.DeliveryService.Application.Abstractions;
+using Maliev.DeliveryService.Infrastructure.Authorization;
+using Maliev.DeliveryService.Infrastructure.Consumers;
+using Maliev.DeliveryService.Infrastructure.HttpClients;
+using Maliev.DeliveryService.Infrastructure.Persistence;
+using Maliev.DeliveryService.Infrastructure.Services;
+using Maliev.DeliveryService.Infrastructure.Storage;
 using Maliev.Aspire.ServiceDefaults;
 
 // Initialize bootstrap logging
@@ -35,7 +39,7 @@ try
     builder.AddMassTransitWithRabbitMq(x =>
     {
         // Register all event consumers
-        x.AddConsumer<Maliev.DeliveryService.Api.Consumers.OrderCompletedEventConsumer>();
+        x.AddConsumer<OrderCompletedEventConsumer>();
     }); // RabbitMQ message bus (non-blocking startup)
 
     // --- API Configuration ---

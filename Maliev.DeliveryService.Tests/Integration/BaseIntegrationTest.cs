@@ -1,4 +1,4 @@
-using Maliev.DeliveryService.Data;
+using Maliev.DeliveryService.Infrastructure.Persistence;
 using Maliev.DeliveryService.Tests.Integration.TestFixtures;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -16,7 +16,14 @@ public abstract class BaseIntegrationTest : IAsyncLifetime
     protected BaseIntegrationTest(DeliveryServiceTestFixture fixture)
     {
         Fixture = fixture;
-        Client = Fixture.CreateAuthenticatedClient(userId: "test-user-id");
+        var permissions = new[]
+        {
+            "delivery.deliverynotes.create",
+            "delivery.deliverynotes.read",
+            "delivery.deliverynotes.update",
+            "delivery.deliverynotes.delete"
+        };
+        Client = Fixture.CreateAuthenticatedClient(userId: "test-user-id", permissions: permissions);
     }
 
     public virtual Task InitializeAsync() => Task.CompletedTask;

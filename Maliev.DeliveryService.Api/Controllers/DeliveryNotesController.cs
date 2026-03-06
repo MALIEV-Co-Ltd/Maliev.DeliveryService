@@ -13,6 +13,9 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Maliev.DeliveryService.Api.Controllers;
 
+/// <summary>
+/// Controller for managing delivery notes.
+/// </summary>
 [ApiController]
 [ApiVersion("1.0")]
 [Route("delivery/v{version:apiVersion}/delivery-notes")]
@@ -22,6 +25,9 @@ public class DeliveryNotesController : ControllerBase
     private readonly IPublishEndpoint _publishEndpoint;
     private readonly ILogger<DeliveryNotesController> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of DeliveryNotesController.
+    /// </summary>
     public DeliveryNotesController(
         IDeliveryNoteService deliveryNoteService,
         IPublishEndpoint publishEndpoint,

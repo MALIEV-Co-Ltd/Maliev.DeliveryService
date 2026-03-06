@@ -1,13 +1,13 @@
-using System;
+﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace Maliev.DeliveryService.Data.Migrations
+namespace Maliev.DeliveryService.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class StandardizeDeliveryService : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -30,7 +30,8 @@ namespace Maliev.DeliveryService.Data.Migrations
                     created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "NOW()"),
                     created_by = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
                     updated_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    updated_by = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true)
+                    updated_by = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -72,10 +73,10 @@ namespace Maliev.DeliveryService.Data.Migrations
                     created_by = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
                     updated_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     updated_by = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
-                    row_version = table.Column<int>(type: "integer", nullable: false),
                     is_deleted = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
                     deleted_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    deleted_by = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true)
+                    deleted_by = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -97,7 +98,8 @@ namespace Maliev.DeliveryService.Data.Migrations
                     uploaded_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "NOW()"),
                     uploaded_by = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
                     is_deleted = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
-                    deleted_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
+                    deleted_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -127,7 +129,8 @@ namespace Maliev.DeliveryService.Data.Migrations
                     quantity_delivered = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
                     unit_of_measure = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
                     item_notes = table.Column<string>(type: "text", nullable: true),
-                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false)
                 },
                 constraints: table =>
                 {

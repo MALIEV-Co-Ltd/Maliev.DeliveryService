@@ -2,8 +2,14 @@ using Maliev.DeliveryService.Domain.Entities;
 
 namespace Maliev.DeliveryService.Application.DTOs;
 
+/// <summary>
+/// Extension methods for mapping between entities and DTOs.
+/// </summary>
 public static class DtoMappingExtensions
 {
+    /// <summary>
+    /// Converts a DeliveryNote entity to a DeliveryNoteResponse DTO.
+    /// </summary>
     public static DeliveryNoteResponse ToResponse(this DeliveryNote entity)
     {
         return new DeliveryNoteResponse
@@ -44,12 +50,15 @@ public static class DtoMappingExtensions
             UpdatedAt = entity.UpdatedAt,
             UpdatedBy = entity.UpdatedBy,
 
-            RowVersion = entity.RowVersion,
+            Version = entity.Version,
 
             Items = entity.Items.Select(i => i.ToResponse()).ToList()
         };
     }
 
+    /// <summary>
+    /// Converts a DeliveryNoteItem entity to a DeliveryNoteItemResponse DTO.
+    /// </summary>
     public static DeliveryNoteItemResponse ToResponse(this DeliveryNoteItem entity)
     {
         return new DeliveryNoteItemResponse
@@ -64,10 +73,15 @@ public static class DtoMappingExtensions
             QuantityManufactured = entity.QuantityManufactured,
             QuantityDelivered = entity.QuantityDelivered,
             UnitOfMeasure = entity.UnitOfMeasure,
-            ItemNotes = entity.ItemNotes
+            ItemNotes = entity.ItemNotes,
+
+            Version = entity.Version
         };
     }
 
+    /// <summary>
+    /// Converts a CreateDeliveryNoteRequest DTO to a DeliveryNote entity.
+    /// </summary>
     public static DeliveryNote ToEntity(this CreateDeliveryNoteRequest request, string deliveryNoteId, string createdBy)
     {
         return new DeliveryNote
@@ -105,6 +119,9 @@ public static class DtoMappingExtensions
         };
     }
 
+    /// <summary>
+    /// Converts a CreateDeliveryNoteItemRequest DTO to a DeliveryNoteItem entity.
+    /// </summary>
     public static DeliveryNoteItem ToEntity(this CreateDeliveryNoteItemRequest request)
     {
         return new DeliveryNoteItem
@@ -123,6 +140,9 @@ public static class DtoMappingExtensions
         };
     }
 
+    /// <summary>
+    /// Converts a DeliveryNoteFile entity to a DeliveryNoteFileResponse DTO.
+    /// </summary>
     public static DeliveryNoteFileResponse ToResponse(this DeliveryNoteFile entity)
     {
         return new DeliveryNoteFileResponse
@@ -135,7 +155,9 @@ public static class DtoMappingExtensions
             FileSizeBytes = entity.FileSize,
             Description = entity.Description,
             UploadedAt = entity.UploadedAt,
-            UploadedBy = entity.UploadedBy
+            UploadedBy = entity.UploadedBy,
+
+            Version = entity.Version
         };
     }
 }

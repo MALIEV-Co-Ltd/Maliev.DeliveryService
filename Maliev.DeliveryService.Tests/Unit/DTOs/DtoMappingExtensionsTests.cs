@@ -32,7 +32,7 @@ public class DtoMappingExtensionsTests
             ShippingCostCurrency = "THB",
             CreatedAt = DateTime.UtcNow,
             CreatedBy = "test-user",
-            RowVersion = 1,
+            Version = 5,
             Items = new List<DeliveryNoteItem>
             {
                 new DeliveryNoteItem
@@ -65,6 +65,7 @@ public class DtoMappingExtensionsTests
         Assert.Equal(entity.ShippingCost, result.ShippingCost);
         Assert.Single(result.Items);
         Assert.Equal("PROD-001", result.Items[0].ProductCode);
+        Assert.Equal(5u, result.Version);
     }
 
     [Fact]
@@ -82,7 +83,8 @@ public class DtoMappingExtensionsTests
             QuantityManufactured = 80,
             QuantityDelivered = 50,
             UnitOfMeasure = "pcs",
-            ItemNotes = "Test notes"
+            ItemNotes = "Test notes",
+            Version = 3
         };
 
         var result = entity.ToResponse();
@@ -94,6 +96,7 @@ public class DtoMappingExtensionsTests
         Assert.Equal(entity.ProductName, result.ProductName);
         Assert.Equal(entity.QuantityOrdered, result.QuantityOrdered);
         Assert.Equal(entity.QuantityDelivered, result.QuantityDelivered);
+        Assert.Equal(3u, result.Version);
     }
 
     [Fact]
@@ -186,7 +189,8 @@ public class DtoMappingExtensionsTests
             FileSize = 1024,
             Description = "Test photo",
             UploadedAt = DateTime.UtcNow,
-            UploadedBy = "test-user"
+            UploadedBy = "test-user",
+            Version = 7
         };
 
         var result = entity.ToResponse();
@@ -197,5 +201,6 @@ public class DtoMappingExtensionsTests
         Assert.Equal(entity.FileName, result.OriginalFileName);
         Assert.Equal(entity.StorageUrl, result.StorageUrl);
         Assert.Equal(entity.FileSize, result.FileSizeBytes);
+        Assert.Equal(7u, result.Version);
     }
 }

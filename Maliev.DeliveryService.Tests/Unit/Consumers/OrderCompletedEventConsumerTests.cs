@@ -5,10 +5,10 @@ using Maliev.DeliveryService.Application.Abstractions;
 using Maliev.DeliveryService.Infrastructure.Services;
 using Maliev.DeliveryService.Infrastructure.Persistence;
 using Maliev.DeliveryService.Domain.Entities;
+using Maliev.DeliveryService.Tests.Testing;
 using Maliev.MessagingContracts.Contracts.Orders;
 using MassTransit;
 using MassTransit.Testing;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -16,25 +16,29 @@ using Xunit;
 
 namespace Maliev.DeliveryService.Tests.Unit.Consumers;
 
-public class OrderCompletedEventConsumerTests : IDisposable
+[Collection("PostgreSqlDatabase")]
+public class OrderCompletedEventConsumerTests : IAsyncLifetime
 {
+    private readonly PostgreSqlTestFixture _fixture;
     private readonly Mock<IDeliveryNoteService> _mockDeliveryService;
     private readonly DeliveryDbContext _dbContext;
-    private readonly SqliteConnection _connection;
     private readonly Mock<ILogger<OrderCompletedEventConsumer>> _mockLogger;
 
-    public OrderCompletedEventConsumerTests()
+    public OrderCompletedEventConsumerTests(PostgreSqlTestFixture fixture)
     {
+        _fixture = fixture;
         _mockDeliveryService = new Mock<IDeliveryNoteService>();
         _mockLogger = new Mock<ILogger<OrderCompletedEventConsumer>>();
 
-        _connection = new SqliteConnection("Data Source=:memory:");
-        _connection.Open();
-        var options = new DbContextOptionsBuilder<DeliveryDbContext>()
-            .UseSqlite(_connection)
-            .Options;
-        _dbContext = new DeliveryDbContext(options);
-        _dbContext.Database.EnsureCreated();
+        _dbContext = _fixture.CreateDbContext();
+    }
+
+    public async Task InitializeAsync()
+    {
+        // Clean up tables before each test
+        await _dbContext.Database.ExecuteSqlRawAsync("DELETE FROM delivery_note_files");
+        await _dbContext.Database.ExecuteSqlRawAsync("DELETE FROM delivery_note_items");
+        await _dbContext.Database.ExecuteSqlRawAsync("DELETE FROM delivery_notes");
     }
 
     [Fact]
@@ -182,10 +186,8 @@ public class OrderCompletedEventConsumerTests : IDisposable
         }
     }
 
-    public void Dispose()
+    public async Task DisposeAsync()
     {
-        _dbContext.Database.EnsureDeleted();
-        _dbContext.Dispose();
-        _connection.Dispose();
+        await _dbContext.DisposeAsync();
     }
 }

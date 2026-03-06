@@ -2,28 +2,30 @@ using Maliev.DeliveryService.Application.Abstractions;
 using Maliev.DeliveryService.Infrastructure.Services;
 using Maliev.DeliveryService.Infrastructure.Persistence;
 using Maliev.DeliveryService.Domain.Entities;
-using Microsoft.Data.Sqlite;
+using Maliev.DeliveryService.Tests.Testing;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 namespace Maliev.DeliveryService.Tests.Unit.Services;
 
-public class DeliveryNoteIdGeneratorTests : IDisposable
+[Collection("PostgreSqlDatabase")]
+public class DeliveryNoteIdGeneratorTests : IAsyncLifetime
 {
+    private readonly PostgreSqlTestFixture _fixture;
     private readonly DeliveryDbContext _context;
-    private readonly SqliteConnection _connection;
     private readonly DeliveryNoteIdGenerator _generator;
 
-    public DeliveryNoteIdGeneratorTests()
+    public DeliveryNoteIdGeneratorTests(PostgreSqlTestFixture fixture)
     {
-        _connection = new SqliteConnection("Data Source=:memory:");
-        _connection.Open();
-        var options = new DbContextOptionsBuilder<DeliveryDbContext>()
-            .UseSqlite(_connection)
-            .Options;
-        _context = new DeliveryDbContext(options);
-        _context.Database.EnsureCreated();
+        _fixture = fixture;
+        _context = _fixture.CreateDbContext();
         _generator = new DeliveryNoteIdGenerator(_context);
+    }
+
+    public async Task InitializeAsync()
+    {
+        // Clean up before each test
+        await _context.Database.ExecuteSqlRawAsync("DELETE FROM delivery_notes");
     }
 
     [Fact]
@@ -80,10 +82,8 @@ public class DeliveryNoteIdGeneratorTests : IDisposable
         Assert.Equal($"DN-{year}-000001", id);
     }
 
-    public void Dispose()
+    public async Task DisposeAsync()
     {
-        _context.Database.EnsureDeleted();
-        _context.Dispose();
-        _connection.Dispose();
+        await _context.DisposeAsync();
     }
 }

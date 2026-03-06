@@ -4,7 +4,7 @@ using Maliev.DeliveryService.Infrastructure.Services;
 using Maliev.DeliveryService.Infrastructure.Persistence;
 using Maliev.DeliveryService.Domain.Entities;
 using Maliev.DeliveryService.Tests.Fakes;
-using Microsoft.Data.Sqlite;
+using Maliev.DeliveryService.Tests.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Memory;
@@ -12,29 +12,25 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
 using Moq;
+using Xunit;
 
 namespace Maliev.DeliveryService.Tests.Unit.Services;
 
-public class DeliveryNoteServiceTests : IDisposable
+[Collection("PostgreSqlDatabase")]
+public class DeliveryNoteServiceTests : IAsyncLifetime
 {
+    private readonly PostgreSqlTestFixture _fixture;
     private readonly DeliveryDbContext _context;
-    private readonly SqliteConnection _connection;
     private readonly DeliveryNoteService _service;
     private readonly FakePublishEndpoint _fakePublishEndpoint;
     private readonly FakeOrderServiceClient _fakeOrderServiceClient;
     private readonly FakeFileStorageService _fakeFileStorageService;
     private readonly IDistributedCache _cache;
 
-    public DeliveryNoteServiceTests()
+    public DeliveryNoteServiceTests(PostgreSqlTestFixture fixture)
     {
-        _connection = new SqliteConnection("Data Source=:memory:");
-        _connection.Open();
-        var options = new DbContextOptionsBuilder<DeliveryDbContext>()
-            .UseSqlite(_connection)
-            .Options;
-
-        _context = new DeliveryDbContext(options);
-        _context.Database.EnsureCreated();
+        _fixture = fixture;
+        _context = _fixture.CreateDbContext();
         _fakePublishEndpoint = new FakePublishEndpoint();
         _fakeOrderServiceClient = new FakeOrderServiceClient();
         _fakeFileStorageService = new FakeFileStorageService();
@@ -56,6 +52,15 @@ public class DeliveryNoteServiceTests : IDisposable
             authService,
             _fakeFileStorageService,
             logger);
+    }
+
+    public async Task InitializeAsync()
+    {
+        // Clean up tables before each test
+        await _context.Database.ExecuteSqlRawAsync("DELETE FROM delivery_note_files");
+        await _context.Database.ExecuteSqlRawAsync("DELETE FROM delivery_note_items");
+        await _context.Database.ExecuteSqlRawAsync("DELETE FROM delivery_notes");
+        await _context.Database.ExecuteSqlRawAsync("DELETE FROM addresses");
     }
 
     [Fact]
@@ -423,8 +428,7 @@ public class DeliveryNoteServiceTests : IDisposable
         var updateRequest = new UpdateDeliveryNoteRequest
         {
             CarrierName = "New Carrier",
-            TrackingNumber = "TRACK123",
-            RowVersion = (await _context.DeliveryNotes.FirstAsync(dn => dn.DeliveryNoteId == created.DeliveryNoteId)).RowVersion
+            TrackingNumber = "TRACK123"
         };
 
         // Act
@@ -448,13 +452,15 @@ public class DeliveryNoteServiceTests : IDisposable
         };
         var created = await _service.CreateAsync(createRequest, "test-user");
 
+        // Cancel the delivery note first to put it in a terminal state
+        await _service.UpdateStatusAsync(created.DeliveryNoteId, new UpdateDeliveryStatusRequest { NewStatus = "Cancelled" }, "test-user");
+
         var updateRequest = new UpdateDeliveryNoteRequest
         {
-            CarrierName = "New Carrier",
-            RowVersion = 999 // Wrong row version
+            CarrierName = "New Carrier"
         };
 
-        // Act & Assert
+        // Act & Assert - Cannot update a terminal state (Cancelled)
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => _service.UpdateAsync(created.DeliveryNoteId, updateRequest, "test-user"));
     }
@@ -574,25 +580,10 @@ public class DeliveryNoteServiceTests : IDisposable
         var created = await CreateTestDeliveryNote();
         var updateRequest = new UpdateDeliveryNoteRequest
         {
-            CarrierName = "Retry Carrier",
-            RowVersion = (await _context.DeliveryNotes.FirstAsync(dn => dn.DeliveryNoteId == created.DeliveryNoteId)).RowVersion
+            CarrierName = "Retry Carrier"
         };
 
-        // We need to simulate a conflict then a success.
-        // This is hard with a real DbContext because SaveChangesAsync will actually fail if RowVersion is wrong.
-        // But our service method catches DbUpdateConcurrencyException and retries.
-        
-        // Let's mock the DbContext? No, we are using a real one.
-        // We can manually change the RowVersion in the background to cause a conflict?
-        // No, the service RE-FETCHES the entity in each retry.
-        
-        /*
-        var deliveryNote = await _context.DeliveryNotes.FindAsync(created.DeliveryNoteId);
-        _context.Entry(deliveryNote!).Property(d => d.RowVersion).OriginalValue = 999; // Force conflict
-        */
-
-        // Actually, the simplest way to cover the retry block is to throw the exception manually in a mock if we had one.
-        // Since we are using real DbContext, let's just test that it works normally for now.
+        // Test that a normal update succeeds (xmin concurrency is handled by EF Core automatically).
         var result = await _service.UpdateAsync(created.DeliveryNoteId, updateRequest, "user");
         Assert.Equal("Retry Carrier", result.CarrierName);
     }
@@ -1105,11 +1096,9 @@ public class DeliveryNoteServiceTests : IDisposable
         return await _service.CreateAsync(request, "user");
     }
 
-    public void Dispose()
+    public async Task DisposeAsync()
     {
-        _context.Database.EnsureDeleted();
-        _context.Dispose();
-        _connection.Dispose();
+        await _context.DisposeAsync();
     }
 
     // Fake authorization service for testing

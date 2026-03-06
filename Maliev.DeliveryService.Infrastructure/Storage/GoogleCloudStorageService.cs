@@ -6,6 +6,9 @@ using System.Net.Http;
 
 namespace Maliev.DeliveryService.Infrastructure.Storage;
 
+/// <summary>
+/// Google Cloud Storage implementation of file storage service.
+/// </summary>
 public class GoogleCloudStorageService : IFileStorageService
 {
     private readonly StorageClient _storageClient;
@@ -13,6 +16,9 @@ public class GoogleCloudStorageService : IFileStorageService
     private readonly ILogger<GoogleCloudStorageService> _logger;
     private readonly Func<string, string, TimeSpan, HttpMethod, string>? _urlSigner;
 
+    /// <summary>
+    /// Initializes a new instance of GoogleCloudStorageService.
+    /// </summary>
     public GoogleCloudStorageService(
         StorageClient storageClient,
         IConfiguration configuration,
@@ -39,6 +45,7 @@ public class GoogleCloudStorageService : IFileStorageService
         _urlSigner = urlSigner;
     }
 
+    /// <inheritdoc />
     public async Task<string> UploadAsync(
         Stream fileStream,
         string fileName,
@@ -73,6 +80,7 @@ public class GoogleCloudStorageService : IFileStorageService
         }
     }
 
+    /// <inheritdoc />
     public Task<string> GetSignedUrlAsync(
         string fileName,
         TimeSpan expiration,
@@ -104,6 +112,7 @@ public class GoogleCloudStorageService : IFileStorageService
         }
     }
 
+    /// <inheritdoc />
     public async Task DeleteAsync(string fileName, CancellationToken ct = default)
     {
         try
@@ -129,6 +138,7 @@ public class GoogleCloudStorageService : IFileStorageService
         }
     }
 
+    /// <inheritdoc />
     public async Task<bool> ExistsAsync(string fileName, CancellationToken ct = default)
     {
         try

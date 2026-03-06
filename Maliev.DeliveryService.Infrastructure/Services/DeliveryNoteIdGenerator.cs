@@ -4,15 +4,24 @@ using System.Data;
 
 namespace Maliev.DeliveryService.Infrastructure.Services;
 
+/// <summary>
+/// Generates unique delivery note IDs.
+/// </summary>
 public class DeliveryNoteIdGenerator
 {
     private readonly DeliveryDbContext _context;
 
+    /// <summary>
+    /// Initializes a new instance of DeliveryNoteIdGenerator.
+    /// </summary>
     public DeliveryNoteIdGenerator(DeliveryDbContext context)
     {
         _context = context;
     }
 
+    /// <summary>
+    /// Generates the next sequential delivery note ID.
+    /// </summary>
     public async Task<string> GenerateNextIdAsync(CancellationToken ct = default)
     {
         var currentYear = DateTime.UtcNow.Year;

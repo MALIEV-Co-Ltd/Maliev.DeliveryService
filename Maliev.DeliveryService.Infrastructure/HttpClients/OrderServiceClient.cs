@@ -6,17 +6,24 @@ using Microsoft.Extensions.Logging;
 
 namespace Maliev.DeliveryService.Infrastructure.HttpClients;
 
+/// <summary>
+/// HTTP client for communicating with the Order Service.
+/// </summary>
 public class OrderServiceClient : IOrderServiceClient
 {
     private readonly HttpClient _httpClient;
     private readonly ILogger<OrderServiceClient> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of OrderServiceClient.
+    /// </summary>
     public OrderServiceClient(HttpClient httpClient, ILogger<OrderServiceClient> logger)
     {
         _httpClient = httpClient;
         _logger = logger;
     }
 
+    /// <inheritdoc />
     public async Task<OrderDetailsDto?> GetOrderAsync(string orderId, CancellationToken ct = default)
     {
         try

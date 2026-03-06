@@ -12,6 +12,9 @@ using System.Text.Json;
 
 namespace Maliev.DeliveryService.Infrastructure.Services;
 
+/// <summary>
+/// Implementation of delivery note service.
+/// </summary>
 public class DeliveryNoteService : IDeliveryNoteService
 {
     private readonly DeliveryDbContext _context;
@@ -34,6 +37,9 @@ public class DeliveryNoteService : IDeliveryNoteService
         "application/pdf"
     };
 
+    /// <summary>
+    /// Initializes a new instance of DeliveryNoteService.
+    /// </summary>
     public DeliveryNoteService(
         DeliveryDbContext context,
         DeliveryNoteIdGenerator idGenerator,
@@ -54,6 +60,7 @@ public class DeliveryNoteService : IDeliveryNoteService
         _logger = logger;
     }
 
+    /// <inheritdoc />
     public async Task<DeliveryNoteResponse> CreateAsync(CreateDeliveryNoteRequest request, string createdBy, CancellationToken ct = default)
     {
         // Validate request
@@ -109,6 +116,7 @@ public class DeliveryNoteService : IDeliveryNoteService
         return deliveryNote.ToResponse();
     }
 
+    /// <inheritdoc />
     public async Task<DeliveryNoteResponse?> GetByIdAsync(string deliveryNoteId, CancellationToken ct = default)
     {
         // Try to get from cache first
@@ -142,6 +150,7 @@ public class DeliveryNoteService : IDeliveryNoteService
         return response;
     }
 
+    /// <inheritdoc />
     public async Task<PaginatedResponse<DeliveryNoteSummaryDto>> SearchAsync(
         DeliveryNoteFilterRequest filter,
         string principalId,
@@ -235,6 +244,7 @@ public class DeliveryNoteService : IDeliveryNoteService
         };
     }
 
+    /// <inheritdoc />
     public async Task<DeliveryNoteResponse> UpdateStatusAsync(
         string deliveryNoteId,
         UpdateDeliveryStatusRequest request,
@@ -330,6 +340,7 @@ public class DeliveryNoteService : IDeliveryNoteService
         return deliveryNote.ToResponse();
     }
 
+    /// <inheritdoc />
     public async Task<DeliveryNoteFileResponse> AddFileAsync(
         string deliveryNoteId,
         IFileData file,
@@ -396,6 +407,7 @@ public class DeliveryNoteService : IDeliveryNoteService
         }
     }
 
+    /// <inheritdoc />
     public async Task<List<DeliveryNoteFileResponse>> GetFilesAsync(
         string deliveryNoteId,
         CancellationToken ct = default)
@@ -408,6 +420,7 @@ public class DeliveryNoteService : IDeliveryNoteService
         return files.Select(f => f.ToResponse()).ToList();
     }
 
+    /// <inheritdoc />
     public async Task<DeliveryNoteResponse> UpdateAsync(
         string deliveryNoteId,
         UpdateDeliveryNoteRequest request,
@@ -435,12 +448,6 @@ public class DeliveryNoteService : IDeliveryNoteService
                     deliveryNote.Status == DeliveryStatus.Cancelled)
                 {
                     throw new InvalidOperationException($"Cannot update delivery note in terminal status {deliveryNote.Status}");
-                }
-
-                // Optimistic concurrency check
-                if (deliveryNote.RowVersion != request.RowVersion)
-                {
-                    throw new DbUpdateConcurrencyException($"Delivery note {deliveryNoteId} has been modified by another user");
                 }
 
                 // Update fields
@@ -492,6 +499,7 @@ public class DeliveryNoteService : IDeliveryNoteService
         throw new InvalidOperationException("Update failed after maximum retries");
     }
 
+    /// <inheritdoc />
     public async Task SoftDeleteAsync(string deliveryNoteId, string deletedBy, CancellationToken ct = default)
     {
         var deliveryNote = await _context.DeliveryNotes

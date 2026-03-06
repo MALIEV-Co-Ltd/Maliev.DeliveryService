@@ -17,6 +17,9 @@ public class OrderCompletedEventConsumer : IConsumer<OrderCompletedEvent>
     private readonly DeliveryDbContext _context;
     private readonly ILogger<OrderCompletedEventConsumer> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of OrderCompletedEventConsumer.
+    /// </summary>
     public OrderCompletedEventConsumer(
         IDeliveryNoteService deliveryNoteService,
         DeliveryDbContext context,
@@ -27,6 +30,7 @@ public class OrderCompletedEventConsumer : IConsumer<OrderCompletedEvent>
         _logger = logger;
     }
 
+    /// <inheritdoc />
     public async Task Consume(ConsumeContext<OrderCompletedEvent> context)
     {
         var orderEvent = context.Message;

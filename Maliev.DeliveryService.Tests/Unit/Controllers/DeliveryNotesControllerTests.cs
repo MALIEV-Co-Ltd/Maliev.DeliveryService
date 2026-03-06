@@ -1,6 +1,6 @@
 using Maliev.DeliveryService.Api.Controllers;
-using Maliev.DeliveryService.Api.DTOs;
-using Maliev.DeliveryService.Api.Services;
+using Maliev.DeliveryService.Application.DTOs;
+using Maliev.DeliveryService.Application.Abstractions;
 using MassTransit;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -226,7 +226,9 @@ public class DeliveryNotesControllerTests
         // Arrange
         var fileMock = new Mock<IFormFile>();
         var response = new DeliveryNoteFileResponse { FileId = Guid.NewGuid() };
-        _mockService.Setup(x => x.AddFileAsync("DN-1", fileMock.Object, Maliev.DeliveryService.Data.Entities.FileType.Photo, "Desc", "test-user", It.IsAny<CancellationToken>()))
+        
+        // Setup the mock to accept IFileData instead of IFormFile
+        _mockService.Setup(x => x.AddFileAsync("DN-1", It.IsAny<IFileData>(), Maliev.DeliveryService.Domain.Entities.FileType.Photo, "Desc", "test-user", It.IsAny<CancellationToken>()))
             .ReturnsAsync(response);
 
         // Act
@@ -315,7 +317,7 @@ public class DeliveryNotesControllerTests
     public async Task UploadFile_ServiceNotFound_ReturnsNotFound()
     {
         // Arrange
-        _mockService.Setup(x => x.AddFileAsync(It.IsAny<string>(), It.IsAny<IFormFile>(), It.IsAny<Maliev.DeliveryService.Data.Entities.FileType>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _mockService.Setup(x => x.AddFileAsync(It.IsAny<string>(), It.IsAny<IFileData>(), It.IsAny<Maliev.DeliveryService.Domain.Entities.FileType>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("not found"));
 
         // Act
@@ -329,7 +331,7 @@ public class DeliveryNotesControllerTests
     public async Task UploadFile_ServiceArgumentException_ReturnsBadRequest()
     {
         // Arrange
-        _mockService.Setup(x => x.AddFileAsync(It.IsAny<string>(), It.IsAny<IFormFile>(), It.IsAny<Maliev.DeliveryService.Data.Entities.FileType>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _mockService.Setup(x => x.AddFileAsync(It.IsAny<string>(), It.IsAny<IFileData>(), It.IsAny<Maliev.DeliveryService.Domain.Entities.FileType>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new ArgumentException("Invalid file"));
 
         // Act
@@ -366,5 +368,34 @@ public class DeliveryNotesControllerTests
         // Assert
         var statusCodeResult = Assert.IsType<ObjectResult>(result);
         Assert.Equal(500, statusCodeResult.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateDeliveryNote_ArgumentException_ReturnsBadRequest()
+    {
+        // Arrange
+        var request = new CreateDeliveryNoteRequest { OrderId = "ORD-1" };
+        _mockService.Setup(x => x.CreateAsync(request, "test-user", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ArgumentException("Invalid request"));
+
+        // Act
+        var result = await _controller.CreateDeliveryNote(request, CancellationToken.None);
+
+        // Assert
+        Assert.IsType<BadRequestObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task UpdateDeliveryNote_NotFound_ReturnsNotFound()
+    {
+        // Arrange
+        _mockService.Setup(x => x.UpdateAsync(It.IsAny<string>(), It.IsAny<UpdateDeliveryNoteRequest>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("not found"));
+
+        // Act
+        var result = await _controller.UpdateDeliveryNote("DN-1", new UpdateDeliveryNoteRequest(), CancellationToken.None);
+
+        // Assert
+        Assert.IsType<NotFoundResult>(result.Result);
     }
 }

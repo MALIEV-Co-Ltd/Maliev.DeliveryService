@@ -1,10 +1,12 @@
-using Maliev.DeliveryService.Api.Consumers;
-using Maliev.DeliveryService.Api.DTOs;
-using Maliev.DeliveryService.Api.Services;
-using Maliev.DeliveryService.Data;
-using Maliev.DeliveryService.Data.Entities;
-using Maliev.MessagingContracts.Contracts.Orders;
 using Maliev.MessagingContracts;
+using Maliev.DeliveryService.Infrastructure.Consumers;
+using Maliev.DeliveryService.Application.DTOs;
+using Maliev.DeliveryService.Application.Abstractions;
+using Maliev.DeliveryService.Infrastructure.Services;
+using Maliev.DeliveryService.Infrastructure.Persistence;
+using Maliev.DeliveryService.Domain.Entities;
+using Maliev.DeliveryService.Tests.Testing;
+using Maliev.MessagingContracts.Contracts.Orders;
 using MassTransit;
 using MassTransit.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -14,23 +16,29 @@ using Xunit;
 
 namespace Maliev.DeliveryService.Tests.Unit.Consumers;
 
-public class OrderCompletedEventConsumerTests
+[Collection("PostgreSqlDatabase")]
+public class OrderCompletedEventConsumerTests : IAsyncLifetime
 {
+    private readonly PostgreSqlTestFixture _fixture;
     private readonly Mock<IDeliveryNoteService> _mockDeliveryService;
     private readonly DeliveryDbContext _dbContext;
     private readonly Mock<ILogger<OrderCompletedEventConsumer>> _mockLogger;
 
-    public OrderCompletedEventConsumerTests()
+    public OrderCompletedEventConsumerTests(PostgreSqlTestFixture fixture)
     {
+        _fixture = fixture;
         _mockDeliveryService = new Mock<IDeliveryNoteService>();
         _mockLogger = new Mock<ILogger<OrderCompletedEventConsumer>>();
 
-        // Create a unique DB name for each test instance to avoid collisions
-        var options = new DbContextOptionsBuilder<DeliveryDbContext>()
-            .UseInMemoryDatabase(databaseName: $"ConsumerTestDb_{Guid.NewGuid()}")
-            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
-            .Options;
-        _dbContext = new DeliveryDbContext(options);
+        _dbContext = _fixture.CreateDbContext();
+    }
+
+    public async Task InitializeAsync()
+    {
+        // Clean up tables before each test
+        await _dbContext.Database.ExecuteSqlRawAsync("DELETE FROM delivery_note_files");
+        await _dbContext.Database.ExecuteSqlRawAsync("DELETE FROM delivery_note_items");
+        await _dbContext.Database.ExecuteSqlRawAsync("DELETE FROM delivery_notes");
     }
 
     [Fact]
@@ -176,5 +184,10 @@ public class OrderCompletedEventConsumerTests
         {
             await harness.Stop();
         }
+    }
+
+    public async Task DisposeAsync()
+    {
+        await _dbContext.DisposeAsync();
     }
 }

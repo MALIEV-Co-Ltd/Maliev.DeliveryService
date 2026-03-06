@@ -1,6 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
-using Maliev.DeliveryService.Api.DTOs;
+using Maliev.DeliveryService.Application.DTOs;
 using Maliev.DeliveryService.Tests.Integration.TestFixtures;
 using Xunit;
 

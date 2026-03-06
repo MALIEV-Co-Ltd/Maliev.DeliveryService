@@ -45,5 +45,11 @@ public class DeliveryNoteFileConfiguration : IEntityTypeConfiguration<DeliveryNo
 
         // Global query filter for soft delete
         builder.HasQueryFilter(f => !f.IsDeleted);
+
+        builder.Property(f => f.Version)
+            .HasColumnName("xmin")
+            .HasColumnType("xid")
+            .ValueGeneratedOnAddOrUpdate()
+            .IsConcurrencyToken();
     }
 }

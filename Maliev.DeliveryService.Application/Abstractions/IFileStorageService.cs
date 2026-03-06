@@ -1,5 +1,8 @@
 namespace Maliev.DeliveryService.Application.Abstractions;
 
+/// <summary>
+/// Service for managing file storage operations.
+/// </summary>
 public interface IFileStorageService
 {
     /// <summary>

@@ -79,4 +79,9 @@ public class Address
     /// Gets or sets the user or system that last updated the address record.
     /// </summary>
     public string? UpdatedBy { get; set; }
+
+    /// <summary>
+    /// Gets or sets the concurrency version (maps to PostgreSQL xmin).
+    /// </summary>
+    public uint Version { get; set; }
 }

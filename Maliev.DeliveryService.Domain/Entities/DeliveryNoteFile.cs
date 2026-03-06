@@ -69,4 +69,9 @@ public class DeliveryNoteFile
     /// Gets or sets the associated delivery note navigation property.
     /// </summary>
     public DeliveryNote DeliveryNote { get; set; } = null!;
+
+    /// <summary>
+    /// Gets or sets the concurrency version (maps to PostgreSQL xmin).
+    /// </summary>
+    public uint Version { get; set; }
 }

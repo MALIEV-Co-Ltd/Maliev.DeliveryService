@@ -59,4 +59,9 @@ public class DeliveryNoteItemResponse
     /// Gets or sets optional notes for this item.
     /// </summary>
     public string? ItemNotes { get; set; }
+
+    /// <summary>
+    /// Gets or sets the concurrency version.
+    /// </summary>
+    public uint Version { get; set; }
 }

@@ -151,12 +151,12 @@ public class DeliveryNoteResponse
     public string? UpdatedBy { get; set; }
 
     /// <summary>
-    /// Gets or sets the row version for optimistic concurrency.
-    /// </summary>
-    public int RowVersion { get; set; }
-
-    /// <summary>
     /// Gets or sets the list of items.
     /// </summary>
     public List<DeliveryNoteItemResponse> Items { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets the concurrency version.
+    /// </summary>
+    public uint Version { get; set; }
 }

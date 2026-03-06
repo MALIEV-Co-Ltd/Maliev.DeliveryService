@@ -37,5 +37,11 @@ public class DeliveryNoteItemConfiguration : IEntityTypeConfiguration<DeliveryNo
         // Indices
         builder.HasIndex(i => i.DeliveryNoteId).HasDatabaseName("idx_delivery_note_items_dn_id");
         builder.HasIndex(i => i.ProductCode).HasDatabaseName("idx_delivery_note_items_product");
+
+        builder.Property(i => i.Version)
+            .HasColumnName("xmin")
+            .HasColumnType("xid")
+            .ValueGeneratedOnAddOrUpdate()
+            .IsConcurrencyToken();
     }
 }

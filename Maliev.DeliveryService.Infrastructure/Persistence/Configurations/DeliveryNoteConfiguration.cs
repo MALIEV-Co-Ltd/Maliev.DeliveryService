@@ -57,11 +57,15 @@ public class DeliveryNoteConfiguration : IEntityTypeConfiguration<DeliveryNote>
         builder.Property(dn => dn.UpdatedAt).HasColumnName("updated_at");
         builder.Property(dn => dn.UpdatedBy).HasColumnName("updated_by").HasMaxLength(200);
 
-        builder.Property(dn => dn.RowVersion).HasColumnName("row_version").IsConcurrencyToken();
-
         builder.Property(dn => dn.IsDeleted).HasColumnName("is_deleted").IsRequired().HasDefaultValue(false);
         builder.Property(dn => dn.DeletedAt).HasColumnName("deleted_at");
         builder.Property(dn => dn.DeletedBy).HasColumnName("deleted_by").HasMaxLength(200);
+
+        builder.Property(dn => dn.Version)
+            .HasColumnName("xmin")
+            .HasColumnType("xid")
+            .ValueGeneratedOnAddOrUpdate()
+            .IsConcurrencyToken();
 
         // Indices
         builder.HasIndex(dn => dn.OrderId).HasDatabaseName("idx_delivery_notes_order_id");

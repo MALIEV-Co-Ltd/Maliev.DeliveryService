@@ -35,5 +35,11 @@ public class AddressConfiguration : IEntityTypeConfiguration<Address>
         builder.Property(a => a.CreatedBy).HasColumnName("created_by").HasMaxLength(200).IsRequired();
         builder.Property(a => a.UpdatedAt).HasColumnName("updated_at");
         builder.Property(a => a.UpdatedBy).HasColumnName("updated_by").HasMaxLength(200);
+
+        builder.Property(a => a.Version)
+            .HasColumnName("xmin")
+            .HasColumnType("xid")
+            .ValueGeneratedOnAddOrUpdate()
+            .IsConcurrencyToken();
     }
 }

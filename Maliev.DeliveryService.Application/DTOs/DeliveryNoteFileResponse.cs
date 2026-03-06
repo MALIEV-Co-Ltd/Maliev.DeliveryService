@@ -49,4 +49,9 @@ public class DeliveryNoteFileResponse
     /// Gets or sets the user who uploaded the file.
     /// </summary>
     public string UploadedBy { get; set; } = null!;
+
+    /// <summary>
+    /// Gets or sets the concurrency version.
+    /// </summary>
+    public uint Version { get; set; }
 }

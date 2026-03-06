@@ -161,11 +161,6 @@ public class DeliveryNote
     public string? UpdatedBy { get; set; }
 
     /// <summary>
-    /// Gets or sets the concurrency token for optimistic locking.
-    /// </summary>
-    public int RowVersion { get; set; }
-
-    /// <summary>
     /// Gets or sets a value indicating whether the delivery note is deleted.
     /// </summary>
     public bool IsDeleted { get; set; }
@@ -189,4 +184,9 @@ public class DeliveryNote
     /// Gets or sets the list of files attached to this delivery note.
     /// </summary>
     public List<DeliveryNoteFile> Files { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets the concurrency (maps to row version for optimistic PostgreSQL xmin).
+    /// </summary>
+    public uint Version { get; set; }
 }

@@ -50,8 +50,4 @@ public class UpdateDeliveryNoteRequest
     /// </summary>
     public string? InternalNotes { get; set; }
 
-    /// <summary>
-    /// Gets or sets the row version for optimistic concurrency.
-    /// </summary>
-    public int RowVersion { get; set; }
 }

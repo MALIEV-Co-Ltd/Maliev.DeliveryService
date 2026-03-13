@@ -44,7 +44,7 @@ public class PostgreSqlTestFixture : IAsyncLifetime
             }
 
             _postgresContainer = 
-                #pragma warning disable CS0618
+#pragma warning disable CS0618
         new PostgreSqlBuilder().WithImage("postgres:18-alpine")
                 .Build();
 #pragma warning restore CS0618

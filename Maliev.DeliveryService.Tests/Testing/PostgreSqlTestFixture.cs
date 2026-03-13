@@ -43,8 +43,11 @@ public class PostgreSqlTestFixture : IAsyncLifetime
                 return;
             }
 
-            _postgresContainer = new PostgreSqlBuilder("postgres:18-alpine")
+            _postgresContainer = 
+                #pragma warning disable CS0618
+        new PostgreSqlBuilder().WithImage("postgres:18-alpine")
                 .Build();
+#pragma warning restore CS0618
 
             await _postgresContainer.StartAsync();
 
@@ -118,3 +121,6 @@ public class PostgreSqlTestFixture : IAsyncLifetime
 public class PostgreSqlTestCollection : ICollectionFixture<PostgreSqlTestFixture>
 {
 }
+
+
+

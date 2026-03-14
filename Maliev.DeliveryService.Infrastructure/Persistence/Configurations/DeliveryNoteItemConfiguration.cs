@@ -43,5 +43,10 @@ public class DeliveryNoteItemConfiguration : IEntityTypeConfiguration<DeliveryNo
             .HasColumnType("xid")
             .ValueGeneratedOnAddOrUpdate()
             .IsConcurrencyToken();
+
+        // Matching global query filter to suppress EF Core warning 10622:
+        // DeliveryNote has a soft-delete filter, so items must carry the same filter
+        // so that EF Core's query rewriter stays consistent when navigating the relationship.
+        builder.HasQueryFilter(i => !i.DeliveryNote!.IsDeleted);
     }
 }

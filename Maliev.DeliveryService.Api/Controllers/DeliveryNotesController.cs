@@ -17,7 +17,7 @@ namespace Maliev.DeliveryService.Api.Controllers;
 /// Controller for managing delivery notes.
 /// </summary>
 [ApiController]
-[ApiVersion("1.0")]
+[ApiVersion("1")]
 [Route("delivery/v{version:apiVersion}/delivery-notes")]
 public class DeliveryNotesController : ControllerBase
 {

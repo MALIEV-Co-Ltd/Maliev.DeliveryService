@@ -1,4 +1,5 @@
 using Maliev.DeliveryService.Application.Abstractions;
+using Maliev.DeliveryService.Application.Services;
 using Maliev.DeliveryService.Infrastructure.Authorization;
 using Maliev.DeliveryService.Infrastructure.Consumers;
 using Maliev.DeliveryService.Infrastructure.HttpClients;
@@ -6,6 +7,7 @@ using Maliev.DeliveryService.Infrastructure.Persistence;
 using Maliev.DeliveryService.Infrastructure.Services;
 using Maliev.DeliveryService.Infrastructure.Storage;
 using Maliev.Aspire.ServiceDefaults;
+using Maliev.Aspire.ServiceDefaults.IAM;
 
 // Initialize bootstrap logging
 using var loggerFactory = LoggerFactory.Create(logBuilder => logBuilder.AddConsole());
@@ -41,6 +43,9 @@ try
         // Register all event consumers
         x.AddConsumer<OrderCompletedEventConsumer>();
     }); // RabbitMQ message bus (non-blocking startup)
+
+    // IAM Registration
+    builder.Services.AddIAMRegistration<DeliveryIAMRegistrationService>("delivery");
 
     // --- API Configuration ---
     builder.AddStandardCors(); // CORS with fail-fast validation

@@ -53,10 +53,11 @@ public class DeliveryNotesController : ControllerBase
         {
             var userId = User.GetUserId();
             var result = await _deliveryNoteService.CreateAsync(request, userId, ct);
+            var apiVersion = HttpContext.GetRequestedApiVersion()?.ToString() ?? "1.0";
 
             return CreatedAtAction(
                 nameof(GetDeliveryNote),
-                new { id = result.DeliveryNoteId, version = "1.0" },
+                new { id = result.DeliveryNoteId, version = apiVersion },
                 result);
         }
         catch (ArgumentException ex)
@@ -221,10 +222,11 @@ public class DeliveryNotesController : ControllerBase
             var userId = User.GetUserId();
             var fileData = new FormFileAdapter(file);
             var result = await _deliveryNoteService.AddFileAsync(id, fileData, fileTypeEnum, description, userId, ct);
+            var apiVersion = HttpContext.GetRequestedApiVersion()?.ToString() ?? "1.0";
 
             return CreatedAtAction(
                 nameof(GetFiles),
-                new { id, version = "1.0" },
+                new { id, version = apiVersion },
                 result);
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("not found"))

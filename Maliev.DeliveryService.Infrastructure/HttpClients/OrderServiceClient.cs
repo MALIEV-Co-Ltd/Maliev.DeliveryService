@@ -29,16 +29,16 @@ public class OrderServiceClient : IOrderServiceClient
         try
         {
             _logger.LogInformation("Fetching order details for {OrderId} from OrderService", orderId);
-            
+
             // Get order from order service
             var response = await _httpClient.GetAsync($"order/v1/orders/{orderId}", ct);
-            
+
             if (response.StatusCode == HttpStatusCode.NotFound)
             {
                 _logger.LogWarning("Order {OrderId} not found in OrderService", orderId);
                 return null;
             }
-            
+
             response.EnsureSuccessStatusCode();
 
             var orderData = await response.Content.ReadFromJsonAsync<OrderServiceResponse>(cancellationToken: ct);

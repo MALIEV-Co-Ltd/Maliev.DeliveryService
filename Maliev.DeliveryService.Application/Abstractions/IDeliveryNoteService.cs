@@ -12,37 +12,37 @@ public interface IDeliveryNoteService
     /// Creates a new delivery note.
     /// </summary>
     Task<DeliveryNoteResponse> CreateAsync(CreateDeliveryNoteRequest request, string createdBy, CancellationToken ct = default);
-    
+
     /// <summary>
     /// Gets a delivery note by its ID.
     /// </summary>
     Task<DeliveryNoteResponse?> GetByIdAsync(string deliveryNoteId, CancellationToken ct = default);
-    
+
     /// <summary>
     /// Updates the status of an existing delivery note.
     /// </summary>
     Task<DeliveryNoteResponse> UpdateStatusAsync(string deliveryNoteId, UpdateDeliveryStatusRequest request, string updatedBy, CancellationToken ct = default);
-    
+
     /// <summary>
     /// Searches for delivery notes based on filter criteria.
     /// </summary>
     Task<PaginatedResponse<DeliveryNoteSummaryDto>> SearchAsync(DeliveryNoteFilterRequest filter, string principalId, CancellationToken ct = default);
-    
+
     /// <summary>
     /// Adds a file to a delivery note.
     /// </summary>
     Task<DeliveryNoteFileResponse> AddFileAsync(string deliveryNoteId, IFileData file, FileType fileType, string? description, string uploadedBy, CancellationToken ct = default);
-    
+
     /// <summary>
     /// Gets all files attached to a delivery note.
     /// </summary>
     Task<List<DeliveryNoteFileResponse>> GetFilesAsync(string deliveryNoteId, CancellationToken ct = default);
-    
+
     /// <summary>
     /// Updates an existing delivery note.
     /// </summary>
     Task<DeliveryNoteResponse> UpdateAsync(string deliveryNoteId, UpdateDeliveryNoteRequest request, string updatedBy, CancellationToken ct = default);
-    
+
     /// <summary>
     /// Soft deletes a delivery note.
     /// </summary>

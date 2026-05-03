@@ -16,7 +16,7 @@ public class DeliveryDbContextFactory : IDesignTimeDbContextFactory<DeliveryDbCo
     public DeliveryDbContext CreateDbContext(string[] args)
     {
         var optionsBuilder = new DbContextOptionsBuilder<DeliveryDbContext>();
-        
+
         // Use a dummy connection string for design-time operations
         optionsBuilder.UseNpgsql("Host=localhost;Database=dummy;Username=postgres;Password=postgres");
 

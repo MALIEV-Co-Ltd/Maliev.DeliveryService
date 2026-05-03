@@ -37,7 +37,7 @@ try
         connectionName: "DeliveryDbContext");
 
     builder.AddStandardCache("delivery:"); // Redis + in-memory fallback, memory-optimized
-    
+
     builder.AddMassTransitWithRabbitMq(x =>
     {
         // Register all event consumers

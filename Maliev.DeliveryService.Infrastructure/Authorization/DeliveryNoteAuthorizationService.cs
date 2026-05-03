@@ -28,7 +28,7 @@ public class DeliveryNoteAuthorizationService : IDeliveryNoteAuthorizationServic
     public async Task<List<Guid>> GetAuthorizedCustomerIdsAsync(string principalId, CancellationToken ct = default)
     {
         var authorizedResourceIds = await _iamServiceClient.GetAuthorizedResourcesAsync(principalId, "delivery.customer.read", "customers", ct);
-        
+
         var result = new List<Guid>();
         foreach (var idStr in authorizedResourceIds)
         {

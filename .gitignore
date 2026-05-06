@@ -73,6 +73,9 @@ coverage*.xml
 .vscode/
 .idea/
 *.user
+*.csproj.user
+*.rsuser
+*.DotSettings.user
 *.suo
 *.userosscache
 *.sln.docstates

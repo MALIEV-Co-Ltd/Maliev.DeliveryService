@@ -70,7 +70,11 @@ try
     builder.Services.AddScoped<IDeliveryNoteService, DeliveryNoteService>();
 
     // Register Google Cloud Storage
-    if (!builder.Environment.IsEnvironment("Testing"))
+    if (builder.Environment.IsEnvironment("Testing"))
+    {
+        builder.Services.AddSingleton<IFileStorageService, InMemoryFileStorageService>();
+    }
+    else
     {
         try
         {

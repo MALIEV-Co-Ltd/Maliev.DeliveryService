@@ -75,9 +75,11 @@ docker run --name delivery-rabbitmq -p 5672:5672 -p 15672:15672 -d rabbitmq:3-ma
 3. **Configure Environment**
 ```powershell
 # Windows PowerShell
-$env:ConnectionStrings__DeliveryDb="YOUR_POSTGRES_CONNECTION_STRING"
-$env:ConnectionStrings__Messaging="amqp://guest:guest@localhost:5672"
-$env:GoogleCloud__BucketName="maliev-delivery-evidence-dev"
+$env:ConnectionStrings__DeliveryDbContext="YOUR_POSTGRES_CONNECTION_STRING"
+$env:ConnectionStrings__rabbitmq="YOUR_RABBITMQ_CONNECTION_STRING"
+$env:ConnectionStrings__redis="YOUR_REDIS_CONNECTION_STRING"
+$env:GoogleCloudStorage__BucketName="maliev-delivery-evidence-dev"
+$env:GoogleCloudStorage__ProjectId="maliev-platform"
 ```
 
 4. **Apply Migrations & Run**

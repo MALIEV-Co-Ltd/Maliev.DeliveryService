@@ -16,9 +16,13 @@ public class DeliveryDbContextFactory : IDesignTimeDbContextFactory<DeliveryDbCo
     public DeliveryDbContext CreateDbContext(string[] args)
     {
         var optionsBuilder = new DbContextOptionsBuilder<DeliveryDbContext>();
+        var connectionString =
+            Environment.GetEnvironmentVariable("ConnectionStrings__DeliveryDbContext")
+            ?? Environment.GetEnvironmentVariable("ConnectionStrings__DeliveryDb")
+            ?? throw new InvalidOperationException(
+                "Set ConnectionStrings__DeliveryDbContext for design-time EF operations.");
 
-        // Use a dummy connection string for design-time operations
-        optionsBuilder.UseNpgsql("Host=localhost;Database=dummy;Username=postgres;Password=postgres");
+        optionsBuilder.UseNpgsql(connectionString);
 
         return new DeliveryDbContext(optionsBuilder.Options);
     }

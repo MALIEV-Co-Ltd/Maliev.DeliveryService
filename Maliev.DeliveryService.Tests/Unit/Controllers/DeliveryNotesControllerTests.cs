@@ -14,6 +14,7 @@ namespace Maliev.DeliveryService.Tests.Unit.Controllers;
 public class DeliveryNotesControllerTests
 {
     private readonly Mock<IDeliveryNoteService> _mockService;
+    private readonly Mock<IDeliveryNoteAuthorizationService> _mockAuthorizationService;
     private readonly Mock<IPublishEndpoint> _mockPublishEndpoint;
     private readonly Mock<ILogger<DeliveryNotesController>> _mockLogger;
     private readonly DeliveryNotesController _controller;
@@ -21,9 +22,17 @@ public class DeliveryNotesControllerTests
     public DeliveryNotesControllerTests()
     {
         _mockService = new Mock<IDeliveryNoteService>();
+        _mockAuthorizationService = new Mock<IDeliveryNoteAuthorizationService>();
         _mockPublishEndpoint = new Mock<IPublishEndpoint>();
         _mockLogger = new Mock<ILogger<DeliveryNotesController>>();
-        _controller = new DeliveryNotesController(_mockService.Object, _mockPublishEndpoint.Object, _mockLogger.Object);
+        _mockAuthorizationService
+            .Setup(x => x.HasUnrestrictedAccessAsync("test-user", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _controller = new DeliveryNotesController(
+            _mockService.Object,
+            _mockAuthorizationService.Object,
+            _mockPublishEndpoint.Object,
+            _mockLogger.Object);
 
         // Setup User identity
         var user = new ClaimsPrincipal(new ClaimsIdentity(new[]
@@ -144,7 +153,7 @@ public class DeliveryNotesControllerTests
     public async Task GetDeliveryNote_Found_ReturnsOk()
     {
         // Arrange
-        var response = new DeliveryNoteResponse { DeliveryNoteId = "DN-1" };
+        var response = new DeliveryNoteResponse { DeliveryNoteId = "DN-1", CustomerId = Guid.NewGuid() };
         _mockService.Setup(x => x.GetByIdAsync("DN-1", It.IsAny<CancellationToken>()))
             .ReturnsAsync(response);
 
@@ -154,6 +163,27 @@ public class DeliveryNotesControllerTests
         // Assert
         var okResult = Assert.IsType<OkObjectResult>(result.Result);
         Assert.Equal(response, okResult.Value);
+    }
+
+    [Fact]
+    public async Task GetDeliveryNote_CustomerScopeDenied_ReturnsForbid()
+    {
+        // Arrange
+        var customerId = Guid.NewGuid();
+        _mockService.Setup(x => x.GetByIdAsync("DN-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DeliveryNoteResponse { DeliveryNoteId = "DN-1", CustomerId = customerId });
+        _mockAuthorizationService
+            .Setup(x => x.HasUnrestrictedAccessAsync("test-user", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        _mockAuthorizationService
+            .Setup(x => x.CanAccessCustomerAsync("test-user", customerId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        // Act
+        var result = await _controller.GetDeliveryNote("DN-1", CancellationToken.None);
+
+        // Assert
+        Assert.IsType<ForbidResult>(result.Result);
     }
 
     [Fact]
@@ -191,6 +221,8 @@ public class DeliveryNotesControllerTests
     public async Task GetFiles_ReturnsOk()
     {
         // Arrange
+        _mockService.Setup(x => x.GetByIdAsync("DN-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DeliveryNoteResponse { DeliveryNoteId = "DN-1", CustomerId = Guid.NewGuid() });
         var response = new List<DeliveryNoteFileResponse>();
         _mockService.Setup(x => x.GetFilesAsync("DN-1", It.IsAny<CancellationToken>()))
             .ReturnsAsync(response);
@@ -207,7 +239,7 @@ public class DeliveryNotesControllerTests
     public async Task GeneratePdf_Success_ReturnsAccepted()
     {
         // Arrange
-        var response = new DeliveryNoteResponse { DeliveryNoteId = "DN-1" };
+        var response = new DeliveryNoteResponse { DeliveryNoteId = "DN-1", CustomerId = Guid.NewGuid() };
         _mockService.Setup(x => x.GetByIdAsync("DN-1", It.IsAny<CancellationToken>()))
             .ReturnsAsync(response);
 
@@ -226,7 +258,7 @@ public class DeliveryNotesControllerTests
         // Arrange
         var fileMock = new Mock<IFormFile>();
         var response = new DeliveryNoteFileResponse { FileId = Guid.NewGuid() };
-        
+
         // Setup the mock to accept IFileData instead of IFormFile
         _mockService.Setup(x => x.AddFileAsync("DN-1", It.IsAny<IFileData>(), Maliev.DeliveryService.Domain.Entities.FileType.Photo, "Desc", "test-user", It.IsAny<CancellationToken>()))
             .ReturnsAsync(response);
@@ -301,7 +333,7 @@ public class DeliveryNotesControllerTests
     {
         // Arrange
         _mockService.Setup(x => x.GetByIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new DeliveryNoteResponse());
+            .ReturnsAsync(new DeliveryNoteResponse { CustomerId = Guid.NewGuid() });
         _mockPublishEndpoint.Setup(x => x.Publish(It.IsAny<Maliev.MessagingContracts.Contracts.Delivery.DeliveryNotePdfRequestedEvent>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new Exception("BOOM"));
 

@@ -46,6 +46,7 @@ To maintain high performance and low complexity, the following are **NOT** used:
 - **Delivery Note Management**: Full lifecycle management of delivery documentation from draft to completed.
 - **Sequential ID Generation**: Robust format `DN-YYYY-XXXXXX` with high-concurrency handling.
 - **Partial Delivery Validation**: Logic to prevent shipment quantities from exceeding order quantities across multiple notes.
+- **Customer-Scoped Access**: Delivery-note search and object routes fail closed unless IAM grants unrestricted delivery-note read access or customer-scoped access to the note's customer.
 - **Event-Driven Workflows**: Consumes `OrderCompletedEvent` to automate draft creation and publishes `DeliveryNoteCreatedEvent` for PDF generation.
 - **Evidence Documentation**: Digital signature and photo evidence handling with secure storage.
 
@@ -102,6 +103,13 @@ All endpoints are prefixed with `/delivery/v1/`.
 | GET | `/notes/{id}` | Get delivery note details |
 | PUT | `/notes/{id}/complete` | Finalize a delivery note and trigger events |
 | POST | `/notes/{id}/evidence` | Upload signature or photo evidence |
+
+### Authorization Model
+
+- Endpoint permissions use `DeliveryPermissions` through `[RequirePermission]`.
+- Unrestricted operators and service principals need `delivery.deliverynotes.read` on resource `delivery-notes/*`.
+- Customer-scoped users must have `delivery.customer.read` for `customers/{customerId}` before delivery notes, PDFs, files, or mutations tied to that customer are returned or changed.
+- Empty customer grants are treated as no access, not all access.
 
 ---
 

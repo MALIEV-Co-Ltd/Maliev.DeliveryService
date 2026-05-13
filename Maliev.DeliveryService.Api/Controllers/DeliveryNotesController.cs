@@ -22,6 +22,7 @@ namespace Maliev.DeliveryService.Api.Controllers;
 public class DeliveryNotesController : ControllerBase
 {
     private readonly IDeliveryNoteService _deliveryNoteService;
+    private readonly IDeliveryNoteAuthorizationService _authorizationService;
     private readonly IPublishEndpoint _publishEndpoint;
     private readonly ILogger<DeliveryNotesController> _logger;
 
@@ -30,10 +31,12 @@ public class DeliveryNotesController : ControllerBase
     /// </summary>
     public DeliveryNotesController(
         IDeliveryNoteService deliveryNoteService,
+        IDeliveryNoteAuthorizationService authorizationService,
         IPublishEndpoint publishEndpoint,
         ILogger<DeliveryNotesController> logger)
     {
         _deliveryNoteService = deliveryNoteService;
+        _authorizationService = authorizationService;
         _publishEndpoint = publishEndpoint;
         _logger = logger;
     }
@@ -53,7 +56,7 @@ public class DeliveryNotesController : ControllerBase
         {
             var userId = User.GetUserId();
             var result = await _deliveryNoteService.CreateAsync(request, userId, ct);
-            var apiVersion = HttpContext.GetRequestedApiVersion()?.ToString() ?? "1.0";
+            var apiVersion = GetResponseApiVersion();
 
             return CreatedAtAction(
                 nameof(GetDeliveryNote),
@@ -64,6 +67,10 @@ public class DeliveryNotesController : ControllerBase
         {
             _logger.LogWarning(ex, "Invalid request for creating delivery note");
             return BadRequest(new { error = ex.Message });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
         }
     }
 
@@ -101,6 +108,12 @@ public class DeliveryNotesController : ControllerBase
             return NotFound();
         }
 
+        var principalId = User.GetPrincipalId();
+        if (!await CanAccessCustomerAsync(principalId, result.CustomerId, ct))
+        {
+            return Forbid();
+        }
+
         return Ok(result);
     }
 
@@ -127,6 +140,10 @@ public class DeliveryNotesController : ControllerBase
         catch (InvalidOperationException ex) when (ex.Message.Contains("not found"))
         {
             return NotFound();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
         }
         catch (ArgumentException ex)
         {
@@ -156,6 +173,12 @@ public class DeliveryNotesController : ControllerBase
         if (deliveryNote == null)
         {
             return NotFound();
+        }
+
+        var principalId = User.GetPrincipalId();
+        if (!await CanAccessCustomerAsync(principalId, deliveryNote.CustomerId, ct))
+        {
+            return Forbid();
         }
 
         // Publish PDF requested event
@@ -222,7 +245,7 @@ public class DeliveryNotesController : ControllerBase
             var userId = User.GetUserId();
             var fileData = new FormFileAdapter(file);
             var result = await _deliveryNoteService.AddFileAsync(id, fileData, fileTypeEnum, description, userId, ct);
-            var apiVersion = HttpContext.GetRequestedApiVersion()?.ToString() ?? "1.0";
+            var apiVersion = GetResponseApiVersion();
 
             return CreatedAtAction(
                 nameof(GetFiles),
@@ -232,6 +255,10 @@ public class DeliveryNotesController : ControllerBase
         catch (InvalidOperationException ex) when (ex.Message.Contains("not found"))
         {
             return NotFound();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
         }
         catch (ArgumentException ex)
         {
@@ -255,6 +282,18 @@ public class DeliveryNotesController : ControllerBase
         [FromRoute] string id,
         CancellationToken ct)
     {
+        var deliveryNote = await _deliveryNoteService.GetByIdAsync(id, ct);
+        if (deliveryNote == null)
+        {
+            return NotFound();
+        }
+
+        var principalId = User.GetPrincipalId();
+        if (!await CanAccessCustomerAsync(principalId, deliveryNote.CustomerId, ct))
+        {
+            return Forbid();
+        }
+
         var files = await _deliveryNoteService.GetFilesAsync(id, ct);
         return Ok(files);
     }
@@ -283,6 +322,10 @@ public class DeliveryNotesController : ControllerBase
         catch (InvalidOperationException ex) when (ex.Message.Contains("not found"))
         {
             return NotFound();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("terminal status"))
         {
@@ -324,6 +367,10 @@ public class DeliveryNotesController : ControllerBase
         {
             return NotFound();
         }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
         catch (InvalidOperationException ex) when (ex.Message.Contains("Cannot delete"))
         {
             _logger.LogWarning(ex, "Attempted to delete delivery note {DeliveryNoteId} in non-Pending status", id);
@@ -333,6 +380,24 @@ public class DeliveryNotesController : ControllerBase
         {
             _logger.LogError(ex, "Failed to delete delivery note {DeliveryNoteId}", id);
             return StatusCode(StatusCodes.Status500InternalServerError, new { error = "Failed to delete delivery note" });
+        }
+    }
+
+    private async Task<bool> CanAccessCustomerAsync(string principalId, Guid customerId, CancellationToken ct)
+    {
+        return await _authorizationService.HasUnrestrictedAccessAsync(principalId, ct) ||
+               await _authorizationService.CanAccessCustomerAsync(principalId, customerId, ct);
+    }
+
+    private string GetResponseApiVersion()
+    {
+        try
+        {
+            return HttpContext.GetRequestedApiVersion()?.ToString() ?? "1.0";
+        }
+        catch (ArgumentException)
+        {
+            return "1.0";
         }
     }
 }

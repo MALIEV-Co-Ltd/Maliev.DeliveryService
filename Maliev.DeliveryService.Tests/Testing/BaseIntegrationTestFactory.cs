@@ -64,7 +64,7 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
         {
             if (!_containersStarted)
             {
-                _postgresContainer = 
+                _postgresContainer =
 #pragma warning disable CS0618
         new PostgreSqlBuilder().WithImage("postgres:18-alpine")
                     .Build();
@@ -207,6 +207,18 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
             var iamMock = new Mock<Maliev.Aspire.ServiceDefaults.IAM.IIamServiceClient>();
             iamMock.Setup(x => x.CheckPermissionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(false);
+            iamMock.Setup(x => x.CheckPermissionAsync(
+                    It.IsAny<string>(),
+                    Maliev.DeliveryService.Application.Authorization.DeliveryPermissions.DeliveryNoteRead,
+                    "delivery-notes/*",
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(true);
+            iamMock.Setup(x => x.GetAuthorizedResourcesAsync(
+                    It.IsAny<string>(),
+                    "delivery.customer.read",
+                    "customers",
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new List<string>());
             iamMock.Setup(x => x.GetUserPermissionsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(Enumerable.Empty<string>());
             services.AddSingleton(iamMock.Object);

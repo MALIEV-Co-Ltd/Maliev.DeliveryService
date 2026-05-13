@@ -121,6 +121,15 @@ Maliev.DeliveryService/
 
 ---
 
+## Security & Authorization Boundaries
+
+- **Cross-boundary DTO rule**: Before changing controllers, service clients, DTOs, events, or BFF payloads, verify request/response DTOs, JSON property names, messaging schemas, and tests that assert the actual wire shape.
+- **Endpoint permission rule**: Keep `[RequirePermission]` on every endpoint; do not replace it with plain `[Authorize]`.
+- **Delivery note resource scope**: Search and object routes must fail closed. A caller needs unrestricted `delivery.deliverynotes.read` on `delivery-notes/*` or customer-scoped `delivery.customer.read` on `customers/{customerId}` before a delivery note, file list, generated PDF request, update, status transition, evidence upload, or delete can proceed.
+- **IAM test coverage**: Unit tests must cover both unrestricted and customer-scoped denied paths when authorization code changes.
+
+---
+
 ## Git Rules
 
 - Each `Maliev.*` folder is an independent git repo. `cd` into it before git commands

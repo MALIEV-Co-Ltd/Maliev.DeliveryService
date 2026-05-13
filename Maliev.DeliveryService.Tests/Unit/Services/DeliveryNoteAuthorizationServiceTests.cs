@@ -1,5 +1,6 @@
 using Moq;
 using Maliev.DeliveryService.Application.Abstractions;
+using Maliev.DeliveryService.Application.Authorization;
 using Maliev.DeliveryService.Infrastructure.Authorization;
 using Xunit;
 
@@ -44,6 +45,24 @@ public class DeliveryNoteAuthorizationServiceTests
 
         // Assert
         Assert.False(result);
+    }
+
+    [Fact]
+    public async Task HasUnrestrictedAccessAsync_UsesDeliveryNoteReadWildcardResource()
+    {
+        // Arrange
+        _mockIamClient.Setup(x => x.CheckPermissionAsync(
+                "user",
+                DeliveryPermissions.DeliveryNoteRead,
+                "delivery-notes/*",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        // Act
+        var result = await _service.HasUnrestrictedAccessAsync("user");
+
+        // Assert
+        Assert.True(result);
     }
 
     [Fact]

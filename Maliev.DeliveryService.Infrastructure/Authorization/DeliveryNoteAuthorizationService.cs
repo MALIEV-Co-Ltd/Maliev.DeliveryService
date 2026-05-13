@@ -1,5 +1,6 @@
 using Maliev.Aspire.ServiceDefaults.IAM;
 using Maliev.DeliveryService.Application.Abstractions;
+using Maliev.DeliveryService.Application.Authorization;
 
 namespace Maliev.DeliveryService.Infrastructure.Authorization;
 
@@ -22,6 +23,16 @@ public class DeliveryNoteAuthorizationService : IDeliveryNoteAuthorizationServic
     public async Task<bool> CanAccessCustomerAsync(string principalId, Guid customerId, CancellationToken ct = default)
     {
         return await _iamServiceClient.CheckPermissionAsync(principalId, "delivery.customer.read", $"customers/{customerId}", ct);
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> HasUnrestrictedAccessAsync(string principalId, CancellationToken ct = default)
+    {
+        return await _iamServiceClient.CheckPermissionAsync(
+            principalId,
+            DeliveryPermissions.DeliveryNoteRead,
+            "delivery-notes/*",
+            ct);
     }
 
     /// <inheritdoc />

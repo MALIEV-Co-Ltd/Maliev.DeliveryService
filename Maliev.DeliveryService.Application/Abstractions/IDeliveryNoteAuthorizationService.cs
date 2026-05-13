@@ -11,6 +11,11 @@ public interface IDeliveryNoteAuthorizationService
     Task<bool> CanAccessCustomerAsync(string principalId, Guid customerId, CancellationToken ct = default);
 
     /// <summary>
+    /// Checks if a principal can access delivery notes without customer scoping.
+    /// </summary>
+    Task<bool> HasUnrestrictedAccessAsync(string principalId, CancellationToken ct = default);
+
+    /// <summary>
     /// Gets all customer IDs that a principal is authorized to access.
     /// </summary>
     Task<List<Guid>> GetAuthorizedCustomerIdsAsync(string principalId, CancellationToken ct = default);

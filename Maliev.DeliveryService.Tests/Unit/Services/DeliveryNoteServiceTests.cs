@@ -413,6 +413,96 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task SearchAsync_WithoutUnrestrictedAccessAndNoCustomerGrants_ReturnsEmpty()
+    {
+        // Arrange
+        _context.DeliveryNotes.Add(new DeliveryNote
+        {
+            DeliveryNoteId = "DN-SCOPE-1",
+            OrderId = "ORD-SCOPE-1",
+            CustomerId = Guid.NewGuid(),
+            CustomerName = "Scoped Customer",
+            Status = DeliveryStatus.Pending,
+            DeliveryDate = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow,
+            CreatedBy = "test"
+        });
+        await _context.SaveChangesAsync();
+
+        var service = CreateService(new FakeAuthorizationService(hasUnrestrictedAccess: false));
+
+        // Act
+        var result = await service.SearchAsync(new DeliveryNoteFilterRequest(), "restricted-user");
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(0, result.TotalCount);
+        Assert.Empty(result.Items);
+    }
+
+    [Fact]
+    public async Task SearchAsync_CustomerFilterOutsideAuthorizedCustomers_ReturnsEmpty()
+    {
+        // Arrange
+        var authorizedCustomerId = Guid.NewGuid();
+        var requestedCustomerId = Guid.NewGuid();
+        _context.DeliveryNotes.Add(new DeliveryNote
+        {
+            DeliveryNoteId = "DN-SCOPE-2",
+            OrderId = "ORD-SCOPE-2",
+            CustomerId = requestedCustomerId,
+            CustomerName = "Requested Customer",
+            Status = DeliveryStatus.Pending,
+            DeliveryDate = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow,
+            CreatedBy = "test"
+        });
+        await _context.SaveChangesAsync();
+
+        var service = CreateService(new FakeAuthorizationService(
+            hasUnrestrictedAccess: false,
+            authorizedCustomerIds: new[] { authorizedCustomerId }));
+
+        // Act
+        var result = await service.SearchAsync(
+            new DeliveryNoteFilterRequest { CustomerId = requestedCustomerId },
+            "restricted-user");
+
+        // Assert
+        Assert.Equal(0, result.TotalCount);
+        Assert.Empty(result.Items);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithoutCustomerAccess_ThrowsUnauthorizedAccessException()
+    {
+        // Arrange
+        var service = CreateService(new FakeAuthorizationService(hasUnrestrictedAccess: false));
+        var request = new CreateDeliveryNoteRequest
+        {
+            OrderId = "ORD-SCOPE-CREATE",
+            CustomerId = Guid.NewGuid(),
+            DeliveryDate = DateTime.UtcNow.AddDays(1),
+            Items = new List<CreateDeliveryNoteItemRequest>
+            {
+                new()
+                {
+                    ProductCode = "P1",
+                    ProductName = "Product 1",
+                    QuantityOrdered = 10,
+                    QuantityManufactured = 10,
+                    QuantityDelivered = 5,
+                    UnitOfMeasure = "pcs"
+                }
+            }
+        };
+
+        // Act & Assert
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => service.CreateAsync(request, "restricted-user"));
+    }
+
+    [Fact]
     public async Task UpdateAsync_ValidRequest_UpdatesFields()
     {
         // Arrange
@@ -540,7 +630,7 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
     {
         // Arrange
         var fileData = new TestFileData(new MemoryStream(), "test.png", 1024, "image/png");
-        
+
         // Act & Assert
         await Assert.ThrowsAsync<InvalidOperationException>(() => _service.AddFileAsync("NON-EXISTENT", fileData, FileType.Other, null, "user"));
     }
@@ -593,12 +683,12 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
     {
         // Arrange
         var created = await CreateTestDeliveryNote();
-        
+
         // Add a file
         var ms = new MemoryStream();
         ms.SetLength(1024);
         var fileData = new TestFileData(ms, "test.png", 1024, "image/png");
-        
+
         await _service.AddFileAsync(created.DeliveryNoteId, fileData, FileType.Photo, "Test file", "user");
 
         // Act
@@ -817,7 +907,7 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
         var fileData = new TestFileData(ms, "test.exe", 1024, "application/octet-stream"); // Not allowed
 
         // Act & Assert
-        await Assert.ThrowsAsync<ArgumentException>(() => 
+        await Assert.ThrowsAsync<ArgumentException>(() =>
             _service.AddFileAsync(created.DeliveryNoteId, fileData, FileType.Other, null, "user"));
     }
 
@@ -867,7 +957,7 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
         };
 
         // Act & Assert
-        var exception = await Assert.ThrowsAsync<ArgumentException>(() => 
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
             _service.CreateAsync(secondRequest, "test-user"));
         Assert.Contains("exceeds ordered quantity", exception.Message);
     }
@@ -891,12 +981,12 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
     {
         // Arrange
         var created = await CreateTestDeliveryNote();
-        
+
         // Add a file
         var ms = new MemoryStream();
         ms.SetLength(1024);
         var fileData = new TestFileData(ms, "test.png", 1024, "image/png");
-        
+
         await _service.AddFileAsync(created.DeliveryNoteId, fileData, FileType.Photo, "Test file", "user");
 
         // Act
@@ -906,7 +996,7 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
         var files = await _context.DeliveryNoteFiles
             .Where(f => f.DeliveryNoteId == created.DeliveryNoteId)
             .ToListAsync();
-        
+
         Assert.All(files, f => Assert.True(f.IsDeleted));
     }
 
@@ -1005,7 +1095,7 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
     {
         // Arrange
         var created = await CreateTestDeliveryNote();
-        
+
         // Transition to Cancelled first
         await _service.UpdateStatusAsync(created.DeliveryNoteId,
             new UpdateDeliveryStatusRequest { NewStatus = "Cancelled" }, "test-user");
@@ -1023,7 +1113,7 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
     {
         // Arrange
         var created = await CreateTestDeliveryNote();
-        
+
         // Transition Pending -> InTransit
         await _service.UpdateStatusAsync(created.DeliveryNoteId,
             new UpdateDeliveryStatusRequest { NewStatus = "InTransit" }, "test-user");
@@ -1041,7 +1131,7 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
     {
         // Arrange
         var created = await CreateTestDeliveryNote();
-        
+
         // Transition Pending -> InTransit -> PartiallyDelivered
         await _service.UpdateStatusAsync(created.DeliveryNoteId,
             new UpdateDeliveryStatusRequest { NewStatus = "InTransit" }, "test-user");
@@ -1061,7 +1151,7 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
     {
         // Arrange
         var created = await CreateTestDeliveryNote();
-        
+
         // Transition Pending -> InTransit -> PartiallyDelivered
         await _service.UpdateStatusAsync(created.DeliveryNoteId,
             new UpdateDeliveryStatusRequest { NewStatus = "InTransit" }, "test-user");
@@ -1080,7 +1170,7 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
     public async Task SoftDeleteAsync_NotFound_ThrowsInvalidOperationException()
     {
         // Act & Assert
-        await Assert.ThrowsAsync<InvalidOperationException>(() => 
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
             _service.SoftDeleteAsync("NON-EXISTENT", "test-user"));
     }
 
@@ -1096,6 +1186,19 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
         return await _service.CreateAsync(request, "user");
     }
 
+    private DeliveryNoteService CreateService(IDeliveryNoteAuthorizationService authorizationService)
+    {
+        return new DeliveryNoteService(
+            _context,
+            new DeliveryNoteIdGenerator(_context),
+            _fakePublishEndpoint,
+            _fakeOrderServiceClient,
+            _cache,
+            authorizationService,
+            _fakeFileStorageService,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<DeliveryNoteService>.Instance);
+    }
+
     public async Task DisposeAsync()
     {
         await _context.DisposeAsync();
@@ -1104,14 +1207,30 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
     // Fake authorization service for testing
     private class FakeAuthorizationService : IDeliveryNoteAuthorizationService
     {
+        private readonly bool _hasUnrestrictedAccess;
+        private readonly HashSet<Guid> _authorizedCustomerIds;
+
+        public FakeAuthorizationService(
+            bool hasUnrestrictedAccess = true,
+            IEnumerable<Guid>? authorizedCustomerIds = null)
+        {
+            _hasUnrestrictedAccess = hasUnrestrictedAccess;
+            _authorizedCustomerIds = authorizedCustomerIds?.ToHashSet() ?? [];
+        }
+
         public Task<bool> CanAccessCustomerAsync(string principalId, Guid customerId, CancellationToken ct = default)
         {
-            return Task.FromResult(true); // Allow all access in tests
+            return Task.FromResult(_hasUnrestrictedAccess || _authorizedCustomerIds.Contains(customerId));
+        }
+
+        public Task<bool> HasUnrestrictedAccessAsync(string principalId, CancellationToken ct = default)
+        {
+            return Task.FromResult(_hasUnrestrictedAccess);
         }
 
         public Task<List<Guid>> GetAuthorizedCustomerIdsAsync(string principalId, CancellationToken ct = default)
         {
-            return Task.FromResult(new List<Guid>()); // Return empty list (no customer restrictions)
+            return Task.FromResult(_authorizedCustomerIds.ToList());
         }
     }
 }

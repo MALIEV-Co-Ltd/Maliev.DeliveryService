@@ -66,6 +66,8 @@ public class DeliveryNoteService : IDeliveryNoteService
         // Validate request
         ValidateCreateRequest(request);
 
+        await EnsureCanAccessCustomerAsync(createdBy, request.CustomerId, ct);
+
         // Validate cumulative quantities for partial deliveries (if OrderId is provided)
         if (!string.IsNullOrEmpty(request.OrderId))
         {
@@ -160,13 +162,15 @@ public class DeliveryNoteService : IDeliveryNoteService
             "Searching delivery notes: OrderId={OrderId}, CustomerId={CustomerId}, DateFrom={DateFrom}, DateTo={DateTo}, Status={Status}, Page={Page}, PageSize={PageSize}",
             filter.OrderId, filter.CustomerId, filter.DeliveryDateFrom, filter.DeliveryDateTo, filter.Status, filter.Page, filter.PageSize);
 
-        // Get authorized customer IDs for customer-scoped filtering
-        var authorizedCustomerIds = await _authorizationService.GetAuthorizedCustomerIdsAsync(principalId, ct);
+        var hasUnrestrictedAccess = await _authorizationService.HasUnrestrictedAccessAsync(principalId, ct);
+        var authorizedCustomerIds = hasUnrestrictedAccess
+            ? []
+            : await _authorizationService.GetAuthorizedCustomerIdsAsync(principalId, ct);
 
         var query = _context.DeliveryNotes.AsQueryable();
 
-        // Apply customer-scoped filter (if user has customer restrictions)
-        if (authorizedCustomerIds.Any())
+        // Apply customer-scoped filter for non-admin/non-service callers. Empty authorization means no rows.
+        if (!hasUnrestrictedAccess)
         {
             query = query.Where(dn => authorizedCustomerIds.Contains(dn.CustomerId));
         }
@@ -179,6 +183,17 @@ public class DeliveryNoteService : IDeliveryNoteService
 
         if (filter.CustomerId.HasValue)
         {
+            if (!hasUnrestrictedAccess && !authorizedCustomerIds.Contains(filter.CustomerId.Value))
+            {
+                return new PaginatedResponse<DeliveryNoteSummaryDto>
+                {
+                    Items = [],
+                    TotalCount = 0,
+                    Page = filter.Page,
+                    PageSize = Math.Min(filter.PageSize, 100)
+                };
+            }
+
             query = query.Where(dn => dn.CustomerId == filter.CustomerId.Value);
         }
 
@@ -259,6 +274,8 @@ public class DeliveryNoteService : IDeliveryNoteService
         {
             throw new InvalidOperationException($"Delivery note {deliveryNoteId} not found");
         }
+
+        await EnsureCanAccessCustomerAsync(updatedBy, deliveryNote.CustomerId, ct);
 
         // Parse and validate status transition
         if (!Enum.TryParse<DeliveryStatus>(request.NewStatus, ignoreCase: true, out var newStatus))
@@ -358,6 +375,8 @@ public class DeliveryNoteService : IDeliveryNoteService
             throw new InvalidOperationException($"Delivery note {deliveryNoteId} not found");
         }
 
+        await EnsureCanAccessCustomerAsync(uploadedBy, deliveryNote.CustomerId, ct);
+
         // Validate file size
         if (file.Length > MaxFileSizeBytes)
         {
@@ -443,6 +462,8 @@ public class DeliveryNoteService : IDeliveryNoteService
                     throw new InvalidOperationException($"Delivery note {deliveryNoteId} not found");
                 }
 
+                await EnsureCanAccessCustomerAsync(updatedBy, deliveryNote.CustomerId, ct);
+
                 // Cannot update terminal states
                 if (deliveryNote.Status == DeliveryStatus.Delivered ||
                     deliveryNote.Status == DeliveryStatus.Cancelled)
@@ -510,6 +531,8 @@ public class DeliveryNoteService : IDeliveryNoteService
             throw new InvalidOperationException($"Delivery note {deliveryNoteId} not found");
         }
 
+        await EnsureCanAccessCustomerAsync(deletedBy, deliveryNote.CustomerId, ct);
+
         // Only allow deletion of Pending status
         if (deliveryNote.Status != DeliveryStatus.Pending)
         {
@@ -573,6 +596,21 @@ public class DeliveryNoteService : IDeliveryNoteService
                     $"Manufactured: {item.QuantityManufactured}, Attempted: {item.QuantityDelivered}");
             }
         }
+    }
+
+    private async Task EnsureCanAccessCustomerAsync(string principalId, Guid customerId, CancellationToken ct)
+    {
+        if (await _authorizationService.HasUnrestrictedAccessAsync(principalId, ct))
+        {
+            return;
+        }
+
+        if (await _authorizationService.CanAccessCustomerAsync(principalId, customerId, ct))
+        {
+            return;
+        }
+
+        throw new UnauthorizedAccessException($"Principal {principalId} cannot access customer {customerId}");
     }
 
     private void ValidateStatusTransition(DeliveryStatus currentStatus, DeliveryStatus newStatus, UpdateDeliveryStatusRequest request)

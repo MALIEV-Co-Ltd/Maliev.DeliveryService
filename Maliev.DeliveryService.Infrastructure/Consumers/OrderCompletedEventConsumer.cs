@@ -39,6 +39,15 @@ public class OrderCompletedEventConsumer : IConsumer<OrderCompletedEvent>
             "Received OrderCompletedEvent: OrderId={OrderId}, OrderNumber={OrderNumber}, CompletedAt={CompletedAt}",
             orderEvent.Payload.OrderId, orderEvent.Payload.OrderNumber, orderEvent.Payload.CompletedAt);
 
+        if (!orderEvent.Payload.JobSucceeded)
+        {
+            _logger.LogWarning(
+                "Skipping delivery note auto-creation for failed order completion. OrderId={OrderId}, OrderNumber={OrderNumber}",
+                orderEvent.Payload.OrderId,
+                orderEvent.Payload.OrderNumber);
+            return;
+        }
+
         // Idempotency check: prevent duplicate delivery notes for the same order
         var existingDeliveryNote = await _context.DeliveryNotes
             .Where(dn => dn.OrderId == orderEvent.Payload.OrderId.ToString() && !dn.IsDeleted)

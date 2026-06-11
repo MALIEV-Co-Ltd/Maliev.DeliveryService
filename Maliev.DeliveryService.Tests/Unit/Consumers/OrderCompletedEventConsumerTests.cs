@@ -191,6 +191,69 @@ public class OrderCompletedEventConsumerTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public async Task Consume_FailedOrderCompletion_ShouldSkipDeliveryNoteCreation()
+    {
+        // Arrange
+        var harness = new InMemoryTestHarness();
+        var consumer = new OrderCompletedEventConsumer(
+            _mockDeliveryService.Object,
+            _dbContext,
+            _mockLogger.Object);
+
+        harness.Consumer(() => consumer);
+
+        await harness.Start();
+
+        try
+        {
+            var payload = new OrderCompletedEventPayload(
+                Guid.NewGuid(),
+                "ORD-FAILED",
+                Guid.NewGuid(),
+                Guid.NewGuid(),
+                DateTimeOffset.UtcNow,
+                DateTimeOffset.UtcNow,
+                Guid.NewGuid(),
+                false,
+                null,
+                null,
+                null,
+                null,
+                new List<OrderCompletedEventPayloadItemsItem>
+                {
+                    new(Guid.NewGuid(), "P1", "Product 1", 10.0, 100.0, 1000.0)
+                });
+
+            var orderEvent = new OrderCompletedEvent(
+                Guid.NewGuid(),
+                nameof(OrderCompletedEvent),
+                MessageType.Event,
+                "1.0",
+                "OrderService",
+                Array.Empty<string>(),
+                Guid.NewGuid(),
+                null,
+                DateTimeOffset.UtcNow,
+                false,
+                payload);
+
+            // Act
+            await harness.Bus.Publish(orderEvent);
+
+            // Assert
+            Assert.True(await harness.Consumed.SelectAsync<OrderCompletedEvent>().Any());
+            _mockDeliveryService.Verify(x => x.CreateAsync(
+                It.IsAny<CreateDeliveryNoteRequest>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()), Times.Never);
+        }
+        finally
+        {
+            await harness.Stop();
+        }
+    }
+
     public async Task DisposeAsync()
     {
         await _dbContext.DisposeAsync();

@@ -58,7 +58,7 @@ public class OrderCompletedEventConsumer : IConsumer<OrderCompletedEvent>
             var deliveryNoteRequest = new CreateDeliveryNoteRequest
             {
                 OrderId = orderEvent.Payload.OrderId.ToString(),
-                CustomerId = Guid.Empty, // Not in OrderCompletedEvent payload
+                CustomerId = orderEvent.Payload.CustomerId,
                 CustomerName = "Pending", // Minimal, placeholder
                 DeliveryDate = DateTime.UtcNow.AddDays(1), // Schedule for next day by default
                 Items = orderEvent.Payload.Items.Select(item => new CreateDeliveryNoteItemRequest

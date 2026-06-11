@@ -67,9 +67,11 @@ public class OrderCompletedEventConsumerTests : IAsyncLifetime
         try
         {
             var orderId = Guid.NewGuid();
+            var customerId = Guid.NewGuid();
             var payload = new OrderCompletedEventPayload(
                 orderId,
                 "ORD-001",
+                customerId,
                 Guid.NewGuid(),
                 DateTimeOffset.UtcNow.AddHours(-1),
                 DateTimeOffset.UtcNow,
@@ -103,6 +105,7 @@ public class OrderCompletedEventConsumerTests : IAsyncLifetime
             _mockDeliveryService.Verify(x => x.CreateAsync(
                 It.Is<CreateDeliveryNoteRequest>(req =>
                     req.OrderId == orderId.ToString() &&
+                    req.CustomerId == customerId &&
                     req.Items.Count == 1 &&
                     req.Items[0].QuantityDelivered == 10.0m),
                 "system-auto",
@@ -144,9 +147,11 @@ public class OrderCompletedEventConsumerTests : IAsyncLifetime
 
         try
         {
+            var customerId = Guid.NewGuid();
             var payload = new OrderCompletedEventPayload(
                 orderId,
                 "ORD-DUPLICATE",
+                customerId,
                 Guid.NewGuid(),
                 DateTimeOffset.UtcNow,
                 DateTimeOffset.UtcNow,

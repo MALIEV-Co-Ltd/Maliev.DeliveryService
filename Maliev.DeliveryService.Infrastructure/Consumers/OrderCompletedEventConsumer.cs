@@ -50,14 +50,14 @@ public class OrderCompletedEventConsumer : IConsumer<OrderCompletedEvent>
 
         // Idempotency check: prevent duplicate delivery notes for the same order
         var existingDeliveryNote = await _context.DeliveryNotes
-            .Where(dn => dn.OrderId == orderEvent.Payload.OrderId.ToString() && !dn.IsDeleted)
+            .Where(dn => dn.OrderId == orderEvent.Payload.OrderNumber && !dn.IsDeleted)
             .FirstOrDefaultAsync(context.CancellationToken);
 
         if (existingDeliveryNote != null)
         {
             _logger.LogWarning(
-                "Delivery note already exists for OrderId={OrderId}, skipping auto-creation. Existing DeliveryNoteId={DeliveryNoteId}",
-                orderEvent.Payload.OrderId, existingDeliveryNote.DeliveryNoteId);
+                "Delivery note already exists for OrderNumber={OrderNumber}, skipping auto-creation. Existing DeliveryNoteId={DeliveryNoteId}",
+                orderEvent.Payload.OrderNumber, existingDeliveryNote.DeliveryNoteId);
             return;
         }
 
@@ -66,7 +66,7 @@ public class OrderCompletedEventConsumer : IConsumer<OrderCompletedEvent>
             // Auto-create delivery note draft in "Pending" status
             var deliveryNoteRequest = new CreateDeliveryNoteRequest
             {
-                OrderId = orderEvent.Payload.OrderId.ToString(),
+                OrderId = orderEvent.Payload.OrderNumber,
                 CustomerId = orderEvent.Payload.CustomerId,
                 CustomerName = "Pending", // Minimal, placeholder
                 DeliveryDate = DateTime.UtcNow.AddDays(1), // Schedule for next day by default
@@ -87,8 +87,8 @@ public class OrderCompletedEventConsumer : IConsumer<OrderCompletedEvent>
                 context.CancellationToken);
 
             _logger.LogInformation(
-                "Auto-created delivery note: DeliveryNoteId={DeliveryNoteId}, OrderId={OrderId}",
-                result.DeliveryNoteId, orderEvent.Payload.OrderId);
+                "Auto-created delivery note: DeliveryNoteId={DeliveryNoteId}, OrderNumber={OrderNumber}",
+                result.DeliveryNoteId, orderEvent.Payload.OrderNumber);
         }
         catch (Exception ex)
         {

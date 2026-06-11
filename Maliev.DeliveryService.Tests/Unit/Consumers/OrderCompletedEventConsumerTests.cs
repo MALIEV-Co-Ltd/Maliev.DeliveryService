@@ -67,10 +67,11 @@ public class OrderCompletedEventConsumerTests : IAsyncLifetime
         try
         {
             var orderId = Guid.NewGuid();
+            const string orderNumber = "ORD-001";
             var customerId = Guid.NewGuid();
             var payload = new OrderCompletedEventPayload(
                 orderId,
-                "ORD-001",
+                orderNumber,
                 customerId,
                 Guid.NewGuid(),
                 DateTimeOffset.UtcNow.AddHours(-1),
@@ -104,7 +105,7 @@ public class OrderCompletedEventConsumerTests : IAsyncLifetime
 
             _mockDeliveryService.Verify(x => x.CreateAsync(
                 It.Is<CreateDeliveryNoteRequest>(req =>
-                    req.OrderId == orderId.ToString() &&
+                    req.OrderId == orderNumber &&
                     req.CustomerId == customerId &&
                     req.Items.Count == 1 &&
                     req.Items[0].QuantityDelivered == 10.0m),
@@ -122,12 +123,13 @@ public class OrderCompletedEventConsumerTests : IAsyncLifetime
     {
         // Arrange
         var orderId = Guid.NewGuid();
+        const string orderNumber = "ORD-DUPLICATE";
 
         // Seed existing delivery note
         _dbContext.DeliveryNotes.Add(new DeliveryNote
         {
             DeliveryNoteId = "DN-EXISTING",
-            OrderId = orderId.ToString(),
+            OrderId = orderNumber,
             CustomerId = Guid.NewGuid(),
             Status = DeliveryStatus.Pending,
             CreatedAt = DateTime.UtcNow,
@@ -150,7 +152,7 @@ public class OrderCompletedEventConsumerTests : IAsyncLifetime
             var customerId = Guid.NewGuid();
             var payload = new OrderCompletedEventPayload(
                 orderId,
-                "ORD-DUPLICATE",
+                orderNumber,
                 customerId,
                 Guid.NewGuid(),
                 DateTimeOffset.UtcNow,

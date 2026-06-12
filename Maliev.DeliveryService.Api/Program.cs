@@ -8,6 +8,7 @@ using Maliev.DeliveryService.Infrastructure.Services;
 using Maliev.DeliveryService.Infrastructure.Storage;
 using Maliev.Aspire.ServiceDefaults;
 using Maliev.Aspire.ServiceDefaults.IAM;
+using MassTransit;
 
 // Initialize bootstrap logging
 using var loggerFactory = LoggerFactory.Create(logBuilder => logBuilder.AddConsole());
@@ -40,6 +41,12 @@ try
 
     builder.AddMassTransitWithRabbitMq(x =>
     {
+        x.AddEntityFrameworkOutbox<DeliveryDbContext>(options =>
+        {
+            _ = options.UsePostgres();
+            options.UseBusOutbox();
+        });
+
         // Register all event consumers
         x.AddConsumer<OrderCompletedEventConsumer>();
     }); // RabbitMQ message bus (non-blocking startup)

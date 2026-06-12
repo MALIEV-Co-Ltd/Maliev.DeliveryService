@@ -1,6 +1,7 @@
 using Maliev.DeliveryService.Infrastructure.Persistence.Configurations;
 using Maliev.DeliveryService.Domain.Entities;
 using Maliev.Aspire.ServiceDefaults.Database;
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
 
 namespace Maliev.DeliveryService.Infrastructure.Persistence;
@@ -51,6 +52,10 @@ public class DeliveryDbContext : DbContext
         modelBuilder.ApplyConfiguration(new DeliveryNoteItemConfiguration());
         modelBuilder.ApplyConfiguration(new DeliveryNoteFileConfiguration());
         modelBuilder.ApplyConfiguration(new AddressConfiguration());
+
+        modelBuilder.AddInboxStateEntity();
+        modelBuilder.AddOutboxMessageEntity();
+        modelBuilder.AddOutboxStateEntity();
 
         // Apply PostgreSQL snake_case naming convention globally
         SnakeCaseNamingHelper.ApplySnakeCaseNaming(modelBuilder);

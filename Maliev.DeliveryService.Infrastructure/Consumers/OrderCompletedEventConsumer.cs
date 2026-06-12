@@ -14,6 +14,7 @@ namespace Maliev.DeliveryService.Infrastructure.Consumers;
 public class OrderCompletedEventConsumer : IConsumer<OrderCompletedEvent>
 {
     private readonly IDeliveryNoteService _deliveryNoteService;
+    private readonly IOrderServiceClient _orderServiceClient;
     private readonly DeliveryDbContext _context;
     private readonly ILogger<OrderCompletedEventConsumer> _logger;
 
@@ -22,10 +23,12 @@ public class OrderCompletedEventConsumer : IConsumer<OrderCompletedEvent>
     /// </summary>
     public OrderCompletedEventConsumer(
         IDeliveryNoteService deliveryNoteService,
+        IOrderServiceClient orderServiceClient,
         DeliveryDbContext context,
         ILogger<OrderCompletedEventConsumer> logger)
     {
         _deliveryNoteService = deliveryNoteService;
+        _orderServiceClient = orderServiceClient;
         _context = context;
         _logger = logger;
     }
@@ -63,22 +66,39 @@ public class OrderCompletedEventConsumer : IConsumer<OrderCompletedEvent>
 
         try
         {
-            // Auto-create delivery note draft in "Pending" status
-            var deliveryNoteRequest = new CreateDeliveryNoteRequest
-            {
-                OrderId = orderEvent.Payload.OrderNumber,
-                CustomerId = orderEvent.Payload.CustomerId,
-                CustomerName = "Pending", // Minimal, placeholder
-                DeliveryDate = DateTime.UtcNow.AddDays(1), // Schedule for next day by default
-                Items = orderEvent.Payload.Items.Select(item => new CreateDeliveryNoteItemRequest
+            var orderDetails = await _orderServiceClient.GetOrderAsync(
+                orderEvent.Payload.OrderNumber,
+                context.CancellationToken);
+            var deliveryItems = orderDetails?.Items.Count > 0
+                ? orderDetails.Items.Select(item => new CreateDeliveryNoteItemRequest
+                {
+                    ProductCode = item.ProductCode,
+                    ProductName = item.ProductName,
+                    QuantityOrdered = item.QuantityOrdered,
+                    QuantityManufactured = item.QuantityManufactured,
+                    QuantityDelivered = item.QuantityManufactured,
+                    UnitOfMeasure = item.UnitOfMeasure
+                }).ToList()
+                : orderEvent.Payload.Items.Select(item => new CreateDeliveryNoteItemRequest
                 {
                     ProductCode = item.ProductCode,
                     ProductName = item.ProductName,
                     QuantityOrdered = (decimal)item.Quantity,
-                    QuantityManufactured = (decimal)item.Quantity, // Assume all manufactured for draft
-                    QuantityDelivered = (decimal)item.Quantity,    // Assume full delivery for draft
-                    UnitOfMeasure = "pcs" // Default UoM, contract doesn't have it for items
-                }).ToList()
+                    QuantityManufactured = (decimal)item.Quantity,
+                    QuantityDelivered = (decimal)item.Quantity,
+                    UnitOfMeasure = "pcs"
+                }).ToList();
+
+            // Auto-create delivery note draft in "Pending" status
+            var deliveryNoteRequest = new CreateDeliveryNoteRequest
+            {
+                OrderId = orderEvent.Payload.OrderNumber,
+                CustomerId = orderDetails?.CustomerId == Guid.Empty
+                    ? orderEvent.Payload.CustomerId
+                    : orderDetails?.CustomerId ?? orderEvent.Payload.CustomerId,
+                CustomerName = orderDetails?.CustomerName,
+                DeliveryDate = DateTime.UtcNow.AddDays(1), // Schedule for next day by default
+                Items = deliveryItems
             };
 
             var result = await _deliveryNoteService.CreateAsync(

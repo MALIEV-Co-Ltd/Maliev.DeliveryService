@@ -21,6 +21,7 @@ public class OrderCompletedEventConsumerTests : IAsyncLifetime
 {
     private readonly PostgreSqlTestFixture _fixture;
     private readonly Mock<IDeliveryNoteService> _mockDeliveryService;
+    private readonly Mock<IOrderServiceClient> _mockOrderServiceClient;
     private readonly DeliveryDbContext _dbContext;
     private readonly Mock<ILogger<OrderCompletedEventConsumer>> _mockLogger;
 
@@ -28,6 +29,7 @@ public class OrderCompletedEventConsumerTests : IAsyncLifetime
     {
         _fixture = fixture;
         _mockDeliveryService = new Mock<IDeliveryNoteService>();
+        _mockOrderServiceClient = new Mock<IOrderServiceClient>();
         _mockLogger = new Mock<ILogger<OrderCompletedEventConsumer>>();
 
         _dbContext = _fixture.CreateDbContext();
@@ -57,6 +59,7 @@ public class OrderCompletedEventConsumerTests : IAsyncLifetime
 
         var consumer = new OrderCompletedEventConsumer(
             _mockDeliveryService.Object,
+            _mockOrderServiceClient.Object,
             _dbContext,
             _mockLogger.Object);
 
@@ -69,6 +72,27 @@ public class OrderCompletedEventConsumerTests : IAsyncLifetime
             var orderId = Guid.NewGuid();
             const string orderNumber = "ORD-001";
             var customerId = Guid.NewGuid();
+            _mockOrderServiceClient
+                .Setup(x => x.GetOrderAsync(orderNumber, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new OrderDetailsDto
+                {
+                    OrderId = orderNumber,
+                    OrderNumber = orderNumber,
+                    CustomerId = customerId,
+                    CustomerName = "Acme Manufacturing",
+                    Items =
+                    [
+                        new OrderLineItemDto
+                        {
+                            ProductCode = "P1-ENRICHED",
+                            ProductName = "Enriched Product",
+                            QuantityOrdered = 10,
+                            QuantityManufactured = 8,
+                            UnitOfMeasure = "pcs"
+                        }
+                    ]
+                });
+
             var payload = new OrderCompletedEventPayload(
                 orderId,
                 orderNumber,
@@ -107,8 +131,11 @@ public class OrderCompletedEventConsumerTests : IAsyncLifetime
                 It.Is<CreateDeliveryNoteRequest>(req =>
                     req.OrderId == orderNumber &&
                     req.CustomerId == customerId &&
+                    req.CustomerName == "Acme Manufacturing" &&
                     req.Items.Count == 1 &&
-                    req.Items[0].QuantityDelivered == 10.0m),
+                    req.Items[0].ProductCode == "P1-ENRICHED" &&
+                    req.Items[0].QuantityManufactured == 8m &&
+                    req.Items[0].QuantityDelivered == 8m),
                 "system-auto",
                 It.IsAny<CancellationToken>()), Times.Once);
         }
@@ -140,6 +167,7 @@ public class OrderCompletedEventConsumerTests : IAsyncLifetime
         var harness = new InMemoryTestHarness();
         var consumer = new OrderCompletedEventConsumer(
             _mockDeliveryService.Object,
+            _mockOrderServiceClient.Object,
             _dbContext,
             _mockLogger.Object);
 
@@ -200,6 +228,7 @@ public class OrderCompletedEventConsumerTests : IAsyncLifetime
         var harness = new InMemoryTestHarness();
         var consumer = new OrderCompletedEventConsumer(
             _mockDeliveryService.Object,
+            _mockOrderServiceClient.Object,
             _dbContext,
             _mockLogger.Object);
 

@@ -23,6 +23,8 @@ public class OrderServiceClientTests
     {
         // Arrange
         var orderId = "ORD-123";
+        var billingAddressId = Guid.NewGuid();
+        var shippingAddressId = Guid.NewGuid();
         var responseData = new
         {
             OrderId = orderId,
@@ -31,7 +33,18 @@ public class OrderServiceClientTests
             ServiceCategoryName = "Cat",
             ProcessTypeName = "Proc",
             OrderedQuantity = 10,
-            ManufacturedQuantity = 10
+            ManufacturedQuantity = 10,
+            BillingAddressId = billingAddressId,
+            ShippingAddressId = shippingAddressId,
+            ShippingAddressLine1 = "88 Rama IX Road",
+            ShippingAddressLine2 = "Floor 12",
+            ShippingCity = "Bangkok",
+            ShippingProvince = "Bangkok",
+            ShippingPostalCode = "10310",
+            ShippingCountry = "TH",
+            DeliveryContactName = "Natt Customer",
+            DeliveryContactPhone = "+66810000002",
+            DeliveryContactEmail = "shipping@example.test"
         };
 
         var httpClient = CreateHttpClient(HttpStatusCode.OK, responseData);
@@ -44,6 +57,17 @@ public class OrderServiceClientTests
         Assert.NotNull(result);
         Assert.Equal(orderId, result.OrderId);
         Assert.Equal("PO-456", result.OrderNumber);
+        Assert.Equal(billingAddressId, result.BillingAddressId);
+        Assert.Equal(shippingAddressId, result.ShippingAddressId);
+        Assert.Equal("88 Rama IX Road", result.ShippingAddressLine1);
+        Assert.Equal("Floor 12", result.ShippingAddressLine2);
+        Assert.Equal("Bangkok", result.ShippingCity);
+        Assert.Equal("Bangkok", result.ShippingProvince);
+        Assert.Equal("10310", result.ShippingPostalCode);
+        Assert.Equal("TH", result.ShippingCountry);
+        Assert.Equal("Natt Customer", result.DeliveryContactName);
+        Assert.Equal("+66810000002", result.DeliveryContactPhone);
+        Assert.Equal("shipping@example.test", result.DeliveryContactEmail);
         Assert.Single(result.Items);
         Assert.Equal("Cat", result.Items[0].ProductCode);
     }

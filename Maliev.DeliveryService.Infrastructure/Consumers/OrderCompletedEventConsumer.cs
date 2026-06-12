@@ -98,6 +98,16 @@ public class OrderCompletedEventConsumer : IConsumer<OrderCompletedEvent>
                     : orderDetails?.CustomerId ?? orderEvent.Payload.CustomerId,
                 CustomerName = orderDetails?.CustomerName,
                 DeliveryDate = DateTime.UtcNow.AddDays(1), // Schedule for next day by default
+                ShippingAddressId = orderDetails?.ShippingAddressId,
+                ShippingAddressLine1 = orderDetails?.ShippingAddressLine1,
+                ShippingAddressLine2 = orderDetails?.ShippingAddressLine2,
+                ShippingCity = orderDetails?.ShippingCity,
+                ShippingProvince = orderDetails?.ShippingProvince,
+                ShippingPostalCode = orderDetails?.ShippingPostalCode,
+                ShippingCountry = orderDetails?.ShippingCountry,
+                DeliveryContactName = orderDetails?.DeliveryContactName,
+                DeliveryContactPhone = orderDetails?.DeliveryContactPhone,
+                DeliveryContactEmail = orderDetails?.DeliveryContactEmail,
                 Items = deliveryItems
             };
 

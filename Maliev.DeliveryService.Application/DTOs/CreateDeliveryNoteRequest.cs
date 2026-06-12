@@ -31,6 +31,11 @@ public class CreateDeliveryNoteRequest
     public DateTime DeliveryDate { get; set; }
 
     /// <summary>
+    /// Gets or sets the shipping address reference ID.
+    /// </summary>
+    public Guid? ShippingAddressId { get; set; }
+
+    /// <summary>
     /// Gets or sets the shipping address line 1.
     /// </summary>
     public string? ShippingAddressLine1 { get; set; }

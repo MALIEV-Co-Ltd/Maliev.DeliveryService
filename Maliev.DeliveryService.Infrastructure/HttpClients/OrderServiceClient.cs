@@ -55,6 +55,17 @@ public class OrderServiceClient : IOrderServiceClient
                 OrderNumber = orderData.CustomerPoNumber ?? orderData.OrderId,
                 CustomerId = Guid.TryParse(orderData.CustomerId, out var cid) ? cid : Guid.Empty,
                 CustomerName = "Unknown", // CustomerName is not provided by OrderService
+                BillingAddressId = orderData.BillingAddressId,
+                ShippingAddressId = orderData.ShippingAddressId,
+                ShippingAddressLine1 = orderData.ShippingAddressLine1,
+                ShippingAddressLine2 = orderData.ShippingAddressLine2,
+                ShippingCity = orderData.ShippingCity,
+                ShippingProvince = orderData.ShippingProvince,
+                ShippingPostalCode = orderData.ShippingPostalCode,
+                ShippingCountry = orderData.ShippingCountry,
+                DeliveryContactName = orderData.DeliveryContactName,
+                DeliveryContactPhone = orderData.DeliveryContactPhone,
+                DeliveryContactEmail = orderData.DeliveryContactEmail,
                 Items = new List<OrderLineItemDto>
                 {
                     new OrderLineItemDto
@@ -92,5 +103,16 @@ public class OrderServiceClient : IOrderServiceClient
         public string? ProcessTypeName { get; set; }
         public int? OrderedQuantity { get; set; }
         public int? ManufacturedQuantity { get; set; }
+        public Guid? BillingAddressId { get; set; }
+        public Guid? ShippingAddressId { get; set; }
+        public string? ShippingAddressLine1 { get; set; }
+        public string? ShippingAddressLine2 { get; set; }
+        public string? ShippingCity { get; set; }
+        public string? ShippingProvince { get; set; }
+        public string? ShippingPostalCode { get; set; }
+        public string? ShippingCountry { get; set; }
+        public string? DeliveryContactName { get; set; }
+        public string? DeliveryContactPhone { get; set; }
+        public string? DeliveryContactEmail { get; set; }
     }
 }

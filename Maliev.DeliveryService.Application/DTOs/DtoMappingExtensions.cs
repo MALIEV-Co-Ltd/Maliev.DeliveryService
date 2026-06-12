@@ -94,6 +94,7 @@ public static class DtoMappingExtensions
             DeliveryDate = request.DeliveryDate,
             Status = DeliveryStatus.Pending,
 
+            ShippingAddressId = request.ShippingAddressId,
             ShippingAddressLine1 = request.ShippingAddressLine1,
             ShippingAddressLine2 = request.ShippingAddressLine2,
             ShippingCity = request.ShippingCity,

@@ -72,6 +72,8 @@ public class OrderCompletedEventConsumerTests : IAsyncLifetime
             var orderId = Guid.NewGuid();
             const string orderNumber = "ORD-001";
             var customerId = Guid.NewGuid();
+            var billingAddressId = Guid.NewGuid();
+            var shippingAddressId = Guid.NewGuid();
             _mockOrderServiceClient
                 .Setup(x => x.GetOrderAsync(orderNumber, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new OrderDetailsDto
@@ -80,6 +82,17 @@ public class OrderCompletedEventConsumerTests : IAsyncLifetime
                     OrderNumber = orderNumber,
                     CustomerId = customerId,
                     CustomerName = "Acme Manufacturing",
+                    BillingAddressId = billingAddressId,
+                    ShippingAddressId = shippingAddressId,
+                    ShippingAddressLine1 = "88 Rama IX Road",
+                    ShippingAddressLine2 = "Floor 12",
+                    ShippingCity = "Bangkok",
+                    ShippingProvince = "Bangkok",
+                    ShippingPostalCode = "10310",
+                    ShippingCountry = "TH",
+                    DeliveryContactName = "Natt Customer",
+                    DeliveryContactPhone = "+66810000002",
+                    DeliveryContactEmail = "shipping@example.test",
                     Items =
                     [
                         new OrderLineItemDto
@@ -132,6 +145,16 @@ public class OrderCompletedEventConsumerTests : IAsyncLifetime
                     req.OrderId == orderNumber &&
                     req.CustomerId == customerId &&
                     req.CustomerName == "Acme Manufacturing" &&
+                    req.ShippingAddressId == shippingAddressId &&
+                    req.ShippingAddressLine1 == "88 Rama IX Road" &&
+                    req.ShippingAddressLine2 == "Floor 12" &&
+                    req.ShippingCity == "Bangkok" &&
+                    req.ShippingProvince == "Bangkok" &&
+                    req.ShippingPostalCode == "10310" &&
+                    req.ShippingCountry == "TH" &&
+                    req.DeliveryContactName == "Natt Customer" &&
+                    req.DeliveryContactPhone == "+66810000002" &&
+                    req.DeliveryContactEmail == "shipping@example.test" &&
                     req.Items.Count == 1 &&
                     req.Items[0].ProductCode == "P1-ENRICHED" &&
                     req.Items[0].QuantityManufactured == 8m &&

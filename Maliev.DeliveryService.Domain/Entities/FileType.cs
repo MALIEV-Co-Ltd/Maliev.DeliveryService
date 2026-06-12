@@ -26,6 +26,11 @@ public enum FileType
     Invoice,
 
     /// <summary>
+    /// A generated delivery note PDF document.
+    /// </summary>
+    DeliveryNotePdf,
+
+    /// <summary>
     /// Any other type of file.
     /// </summary>
     Other

@@ -80,19 +80,8 @@ public class DeliveryNoteService : IDeliveryNoteService
         // Create entity
         var deliveryNote = request.ToEntity(deliveryNoteId, createdBy);
 
-        // Save to database
         _context.DeliveryNotes.Add(deliveryNote);
-        await _context.SaveChangesAsync(ct);
 
-        _logger.LogInformation(
-            "Delivery note created: {DeliveryNoteId}, OrderId: {OrderId}, CustomerId: {CustomerId}, CreatedBy: {CreatedBy}",
-            deliveryNote.DeliveryNoteId, deliveryNote.OrderId, deliveryNote.CustomerId, createdBy);
-
-        // Invalidate cache for this delivery note (in case it was previously cached and deleted)
-        var cacheKey = $"delivery-note:{deliveryNote.DeliveryNoteId}";
-        await _cache.RemoveAsync(cacheKey, ct);
-
-        // Publish DeliveryNoteCreatedEvent with graceful degradation
         await PublishEventAsync(new DeliveryNoteCreatedEvent(
             Guid.NewGuid(),
             nameof(DeliveryNoteCreatedEvent),
@@ -114,6 +103,16 @@ public class DeliveryNoteService : IDeliveryNoteService
                 deliveryNote.CreatedAt,
                 deliveryNote.CreatedBy
             )), ct);
+
+        await _context.SaveChangesAsync(ct);
+
+        _logger.LogInformation(
+            "Delivery note created: {DeliveryNoteId}, OrderId: {OrderId}, CustomerId: {CustomerId}, CreatedBy: {CreatedBy}",
+            deliveryNote.DeliveryNoteId, deliveryNote.OrderId, deliveryNote.CustomerId, createdBy);
+
+        // Invalidate cache for this delivery note (in case it was previously cached and deleted)
+        var cacheKey = $"delivery-note:{deliveryNote.DeliveryNoteId}";
+        await _cache.RemoveAsync(cacheKey, ct);
 
         return deliveryNote.ToResponse();
     }
@@ -298,17 +297,6 @@ public class DeliveryNoteService : IDeliveryNoteService
             deliveryNote.SignedAt = DateTime.UtcNow;
         }
 
-        await _context.SaveChangesAsync(ct);
-
-        _logger.LogInformation(
-            "Delivery note status updated: {DeliveryNoteId}, Status: {OldStatus} -> {NewStatus}, UpdatedBy: {UpdatedBy}",
-            deliveryNoteId, oldStatus, newStatus, updatedBy);
-
-        // Invalidate cache for this delivery note
-        var cacheKey = $"delivery-note:{deliveryNoteId}";
-        await _cache.RemoveAsync(cacheKey, ct);
-
-        // Publish DeliveryStatusChangedEvent
         await PublishEventAsync(new DeliveryStatusChangedEvent(
             Guid.NewGuid(),
             nameof(DeliveryStatusChangedEvent),
@@ -331,7 +319,6 @@ public class DeliveryNoteService : IDeliveryNoteService
                 updatedBy
             )), ct);
 
-        // Publish DeliveryCompletedEvent when fully delivered
         if (newStatus == DeliveryStatus.Delivered)
         {
             await PublishEventAsync(new DeliveryCompletedEvent(
@@ -353,6 +340,16 @@ public class DeliveryNoteService : IDeliveryNoteService
                     deliveryNote.ReceivedByName ?? string.Empty
                 )), ct);
         }
+
+        await _context.SaveChangesAsync(ct);
+
+        _logger.LogInformation(
+            "Delivery note status updated: {DeliveryNoteId}, Status: {OldStatus} -> {NewStatus}, UpdatedBy: {UpdatedBy}",
+            deliveryNoteId, oldStatus, newStatus, updatedBy);
+
+        // Invalidate cache for this delivery note
+        var cacheKey = $"delivery-note:{deliveryNoteId}";
+        await _cache.RemoveAsync(cacheKey, ct);
 
         return deliveryNote.ToResponse();
     }
@@ -709,7 +706,6 @@ public class DeliveryNoteService : IDeliveryNoteService
         {
             var duration = (DateTime.UtcNow - startTime).TotalMilliseconds;
 
-            // Graceful degradation: Log error but don't fail the operation
             _logger.LogWarning(ex,
                 "Failed to publish event. EventType={EventType}, Duration={Duration}ms",
                 eventType, duration);
@@ -718,6 +714,8 @@ public class DeliveryNoteService : IDeliveryNoteService
             _logger.LogError(
                 "Event publishing failed. EventType={EventType}, ErrorType={ErrorType}",
                 eventType, ex.GetType().Name);
+
+            throw;
         }
     }
 }

@@ -103,6 +103,69 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public void CreateAsync_PublishesCreatedEventBeforeSavingForOutbox()
+    {
+        var source = File.ReadAllText(FindDeliveryNoteServiceSourcePath());
+        var methodBody = ExtractMethodSource(
+            source,
+            "public async Task<DeliveryNoteResponse> CreateAsync");
+
+        AssertCallAppearsBeforeSaveChanges(
+            methodBody,
+            "await PublishEventAsync(new DeliveryNoteCreatedEvent(",
+            "CreateAsync must publish DeliveryNoteCreatedEvent before SaveChangesAsync so the EF bus outbox persists the event atomically with the delivery note.");
+    }
+
+    [Fact]
+    public void UpdateStatusAsync_PublishesLifecycleEventsBeforeSavingForOutbox()
+    {
+        var source = File.ReadAllText(FindDeliveryNoteServiceSourcePath());
+        var methodBody = ExtractMethodSource(
+            source,
+            "public async Task<DeliveryNoteResponse> UpdateStatusAsync");
+
+        AssertCallAppearsBeforeSaveChanges(
+            methodBody,
+            "await PublishEventAsync(new DeliveryStatusChangedEvent(",
+            "UpdateStatusAsync must publish DeliveryStatusChangedEvent before SaveChangesAsync so the EF bus outbox persists delivery status changes atomically.");
+        AssertCallAppearsBeforeSaveChanges(
+            methodBody,
+            "await PublishEventAsync(new DeliveryCompletedEvent(",
+            "UpdateStatusAsync must publish DeliveryCompletedEvent before SaveChangesAsync so the EF bus outbox persists delivery completion atomically.");
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenCreatedEventCannotBeStaged_DoesNotPersistDeliveryNote()
+    {
+        var orderId = "ORD-PUBLISH-FAIL";
+        var request = new CreateDeliveryNoteRequest
+        {
+            OrderId = orderId,
+            CustomerId = Guid.NewGuid(),
+            DeliveryDate = DateTime.UtcNow.AddDays(1),
+            Items = new List<CreateDeliveryNoteItemRequest>
+            {
+                new()
+                {
+                    ProductCode = "PROD-FAIL",
+                    ProductName = "Test Product",
+                    QuantityOrdered = 1,
+                    QuantityManufactured = 1,
+                    QuantityDelivered = 1,
+                    UnitOfMeasure = "pcs"
+                }
+            }
+        };
+        _fakePublishEndpoint.PublishException = new InvalidOperationException("outbox unavailable");
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _service.CreateAsync(request, "test-user"));
+
+        Assert.Contains("outbox unavailable", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.False(await _context.DeliveryNotes.AnyAsync(note => note.OrderId == orderId));
+    }
+
+    [Fact]
     public async Task CreateDeliveryNoteAsync_DeliveredExceedsManufactured_ThrowsValidationException()
     {
         // Arrange
@@ -1197,6 +1260,71 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
             authorizationService,
             _fakeFileStorageService,
             Microsoft.Extensions.Logging.Abstractions.NullLogger<DeliveryNoteService>.Instance);
+    }
+
+    private static string FindDeliveryNoteServiceSourcePath()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            var candidate = Path.Combine(
+                directory.FullName,
+                "Maliev.DeliveryService.Infrastructure",
+                "Services",
+                "DeliveryNoteService.cs");
+
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new FileNotFoundException("Could not locate Maliev.DeliveryService.Infrastructure/Services/DeliveryNoteService.cs");
+    }
+
+    private static string ExtractMethodSource(string source, string methodSignature)
+    {
+        var methodStart = source.IndexOf(methodSignature, StringComparison.Ordinal);
+        Assert.True(methodStart >= 0, $"Could not find {methodSignature} source.");
+
+        var openingBrace = source.IndexOf('{', methodStart);
+        Assert.True(openingBrace > methodStart, $"Could not find opening brace for {methodSignature}.");
+
+        var depth = 0;
+        for (var index = openingBrace; index < source.Length; index++)
+        {
+            if (source[index] == '{')
+            {
+                depth++;
+            }
+            else if (source[index] == '}')
+            {
+                depth--;
+                if (depth == 0)
+                {
+                    return source[methodStart..(index + 1)];
+                }
+            }
+        }
+
+        throw new InvalidOperationException($"Could not isolate {methodSignature} source.");
+    }
+
+    private static void AssertCallAppearsBeforeSaveChanges(
+        string methodBody,
+        string expectedCall,
+        string failureMessage)
+    {
+        var callIndex = methodBody.IndexOf(expectedCall, StringComparison.Ordinal);
+        var saveIndex = methodBody.IndexOf(
+            "await _context.SaveChangesAsync(ct);",
+            StringComparison.Ordinal);
+
+        Assert.True(callIndex >= 0, $"Expected call not found: {expectedCall}");
+        Assert.True(saveIndex >= 0, "Expected SaveChangesAsync call not found.");
+        Assert.True(callIndex < saveIndex, failureMessage);
     }
 
     public async Task DisposeAsync()

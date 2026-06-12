@@ -1,6 +1,8 @@
 using Maliev.DeliveryService.Application.DTOs;
 using Maliev.DeliveryService.Application.Abstractions;
 using Maliev.DeliveryService.Infrastructure.Persistence;
+using Maliev.MessagingContracts;
+using Maliev.MessagingContracts.Contracts.Delivery;
 using Maliev.MessagingContracts.Contracts.Orders;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -116,8 +118,24 @@ public class OrderCompletedEventConsumer : IConsumer<OrderCompletedEvent>
                 "system-auto",
                 context.CancellationToken);
 
+            await context.Publish(new DeliveryNotePdfRequestedEvent(
+                Guid.NewGuid(),
+                nameof(DeliveryNotePdfRequestedEvent),
+                MessageType.Event,
+                "1.0",
+                "DeliveryService",
+                Array.Empty<string>(),
+                orderEvent.CorrelationId,
+                orderEvent.MessageId,
+                DateTimeOffset.UtcNow,
+                false,
+                new DeliveryNotePdfRequestedEventPayload(
+                    result.DeliveryNoteId,
+                    "system-auto",
+                    DateTimeOffset.UtcNow)), context.CancellationToken);
+
             _logger.LogInformation(
-                "Auto-created delivery note: DeliveryNoteId={DeliveryNoteId}, OrderNumber={OrderNumber}",
+                "Auto-created delivery note and requested PDF generation: DeliveryNoteId={DeliveryNoteId}, OrderNumber={OrderNumber}",
                 result.DeliveryNoteId, orderEvent.Payload.OrderNumber);
         }
         catch (Exception ex)

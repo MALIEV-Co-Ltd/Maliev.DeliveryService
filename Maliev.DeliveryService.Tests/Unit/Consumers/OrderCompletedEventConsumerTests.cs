@@ -6,6 +6,7 @@ using Maliev.DeliveryService.Infrastructure.Services;
 using Maliev.DeliveryService.Infrastructure.Persistence;
 using Maliev.DeliveryService.Domain.Entities;
 using Maliev.DeliveryService.Tests.Testing;
+using Maliev.MessagingContracts.Contracts.Delivery;
 using Maliev.MessagingContracts.Contracts.Orders;
 using MassTransit;
 using MassTransit.Testing;
@@ -139,6 +140,14 @@ public class OrderCompletedEventConsumerTests : IAsyncLifetime
 
             // Assert
             Assert.True(await harness.Consumed.SelectAsync<OrderCompletedEvent>().Any());
+            Assert.True(await harness.Published.SelectAsync<DeliveryNotePdfRequestedEvent>().Any());
+
+            var pdfRequest = await harness.Published.SelectAsync<DeliveryNotePdfRequestedEvent>().FirstOrDefault();
+            Assert.NotNull(pdfRequest);
+            Assert.Equal("DN-2025-001", pdfRequest.Context.Message.Payload.DeliveryNoteId);
+            Assert.Equal("system-auto", pdfRequest.Context.Message.Payload.RequestedBy);
+            Assert.Equal(orderEvent.CorrelationId, pdfRequest.Context.Message.CorrelationId);
+            Assert.Equal(orderEvent.MessageId, pdfRequest.Context.Message.CausationId);
 
             _mockDeliveryService.Verify(x => x.CreateAsync(
                 It.Is<CreateDeliveryNoteRequest>(req =>
@@ -237,6 +246,7 @@ public class OrderCompletedEventConsumerTests : IAsyncLifetime
                 It.IsAny<CreateDeliveryNoteRequest>(),
                 It.IsAny<string>(),
                 It.IsAny<CancellationToken>()), Times.Never);
+            Assert.False(await harness.Published.SelectAsync<DeliveryNotePdfRequestedEvent>().Any());
         }
         finally
         {
@@ -301,6 +311,7 @@ public class OrderCompletedEventConsumerTests : IAsyncLifetime
                 It.IsAny<CreateDeliveryNoteRequest>(),
                 It.IsAny<string>(),
                 It.IsAny<CancellationToken>()), Times.Never);
+            Assert.False(await harness.Published.SelectAsync<DeliveryNotePdfRequestedEvent>().Any());
         }
         finally
         {

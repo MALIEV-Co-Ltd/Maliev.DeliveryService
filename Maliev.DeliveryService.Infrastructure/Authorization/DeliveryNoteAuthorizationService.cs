@@ -9,6 +9,7 @@ namespace Maliev.DeliveryService.Infrastructure.Authorization;
 /// </summary>
 public class DeliveryNoteAuthorizationService : IDeliveryNoteAuthorizationService
 {
+    private const string SystemAutoPrincipal = "system-auto";
     private readonly IIamServiceClient _iamServiceClient;
 
     /// <summary>
@@ -22,12 +23,22 @@ public class DeliveryNoteAuthorizationService : IDeliveryNoteAuthorizationServic
     /// <inheritdoc />
     public async Task<bool> CanAccessCustomerAsync(string principalId, Guid customerId, CancellationToken ct = default)
     {
+        if (IsSystemAutoPrincipal(principalId))
+        {
+            return true;
+        }
+
         return await _iamServiceClient.CheckPermissionAsync(principalId, "delivery.customer.read", $"customers/{customerId}", ct);
     }
 
     /// <inheritdoc />
     public async Task<bool> HasUnrestrictedAccessAsync(string principalId, CancellationToken ct = default)
     {
+        if (IsSystemAutoPrincipal(principalId))
+        {
+            return true;
+        }
+
         return await _iamServiceClient.CheckPermissionAsync(
             principalId,
             DeliveryPermissions.DeliveryNoteRead,
@@ -38,6 +49,11 @@ public class DeliveryNoteAuthorizationService : IDeliveryNoteAuthorizationServic
     /// <inheritdoc />
     public async Task<List<Guid>> GetAuthorizedCustomerIdsAsync(string principalId, CancellationToken ct = default)
     {
+        if (IsSystemAutoPrincipal(principalId))
+        {
+            return [];
+        }
+
         var authorizedResourceIds = await _iamServiceClient.GetAuthorizedResourcesAsync(principalId, "delivery.customer.read", "customers", ct);
 
         var result = new List<Guid>();
@@ -50,4 +66,7 @@ public class DeliveryNoteAuthorizationService : IDeliveryNoteAuthorizationServic
         }
         return result;
     }
+
+    private static bool IsSystemAutoPrincipal(string principalId) =>
+        string.Equals(principalId, SystemAutoPrincipal, StringComparison.Ordinal);
 }

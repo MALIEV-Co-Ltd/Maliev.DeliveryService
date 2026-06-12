@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Maliev.DeliveryService.Application.Abstractions;
 using Maliev.DeliveryService.Application.DTOs;
 using Microsoft.Extensions.Logging;
@@ -13,6 +14,10 @@ public class OrderServiceClient : IOrderServiceClient
 {
     private readonly HttpClient _httpClient;
     private readonly ILogger<OrderServiceClient> _logger;
+    private static readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        PropertyNameCaseInsensitive = true
+    };
 
     /// <summary>
     /// Initializes a new instance of OrderServiceClient.
@@ -48,6 +53,8 @@ public class OrderServiceClient : IOrderServiceClient
                 return null;
             }
 
+            var orderItems = await GetOrderItemsAsync(orderId, orderData, ct);
+
             // Map OrderService response to DeliveryService DTO
             var dto = new OrderDetailsDto
             {
@@ -66,17 +73,7 @@ public class OrderServiceClient : IOrderServiceClient
                 DeliveryContactName = orderData.DeliveryContactName,
                 DeliveryContactPhone = orderData.DeliveryContactPhone,
                 DeliveryContactEmail = orderData.DeliveryContactEmail,
-                Items = new List<OrderLineItemDto>
-                {
-                    new OrderLineItemDto
-                    {
-                        ProductCode = orderData.ServiceCategoryName ?? "UNK",
-                        ProductName = orderData.ProcessTypeName ?? "Custom Part",
-                        QuantityOrdered = orderData.OrderedQuantity ?? 1,
-                        QuantityManufactured = orderData.ManufacturedQuantity ?? orderData.OrderedQuantity ?? 1,
-                        UnitOfMeasure = "EA"
-                    }
-                }
+                Items = orderItems
             };
 
             return dto;
@@ -91,6 +88,88 @@ public class OrderServiceClient : IOrderServiceClient
             _logger.LogError(ex, "Unexpected error fetching order {OrderId} from OrderService.", orderId);
             throw;
         }
+    }
+
+    private async Task<List<OrderLineItemDto>> GetOrderItemsAsync(
+        string orderId,
+        OrderServiceResponse orderData,
+        CancellationToken ct)
+    {
+        var response = await _httpClient.GetAsync($"order/v1/orders/{Uri.EscapeDataString(orderId)}/items", ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning(
+                "OrderService item endpoint returned {StatusCode} for order {OrderId}; falling back to order summary item.",
+                response.StatusCode,
+                orderId);
+            return [BuildFallbackItem(orderData)];
+        }
+
+        try
+        {
+            var items = await response.Content.ReadFromJsonAsync<List<OrderServiceItemResponse>>(_jsonOptions, ct);
+            if (items is null || items.Count == 0)
+            {
+                return [BuildFallbackItem(orderData)];
+            }
+
+            return [.. items.Select(MapItem)];
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "OrderService item endpoint returned an invalid payload for order {OrderId}; falling back to order summary item.",
+                orderId);
+            return [BuildFallbackItem(orderData)];
+        }
+    }
+
+    private static OrderLineItemDto BuildFallbackItem(OrderServiceResponse orderData)
+    {
+        return new OrderLineItemDto
+        {
+            ProductCode = orderData.ServiceCategoryName ?? "UNK",
+            ProductName = orderData.ProcessTypeName ?? "Custom Part",
+            QuantityOrdered = orderData.OrderedQuantity ?? 1,
+            QuantityManufactured = orderData.ManufacturedQuantity ?? orderData.OrderedQuantity ?? 1,
+            UnitOfMeasure = "EA"
+        };
+    }
+
+    private static OrderLineItemDto MapItem(OrderServiceItemResponse item)
+    {
+        return new OrderLineItemDto
+        {
+            ProductCode = item.SourceProjectPartId?.ToString("N") ?? item.OrderItemId.ToString("N"),
+            ProductName = ResolveProductName(item),
+            QuantityOrdered = Math.Max(1, item.Quantity),
+            QuantityManufactured = Math.Max(1, item.Quantity),
+            UnitOfMeasure = "pcs"
+        };
+    }
+
+    private static string ResolveProductName(OrderServiceItemResponse item)
+    {
+        if (!string.IsNullOrWhiteSpace(item.ConfigurationSnapshotJson))
+        {
+            try
+            {
+                using JsonDocument document = JsonDocument.Parse(item.ConfigurationSnapshotJson);
+                if (document.RootElement.TryGetProperty("fileName", out JsonElement fileName) &&
+                    fileName.ValueKind == JsonValueKind.String &&
+                    !string.IsNullOrWhiteSpace(fileName.GetString()))
+                {
+                    return fileName.GetString()!;
+                }
+            }
+            catch (JsonException)
+            {
+                // Fall through to technology-based label.
+            }
+        }
+
+        return string.IsNullOrWhiteSpace(item.Technology) ? "Custom Part" : $"{item.Technology} part";
     }
 
     // Private response model representing the external OrderService payload
@@ -114,5 +193,14 @@ public class OrderServiceClient : IOrderServiceClient
         public string? DeliveryContactName { get; set; }
         public string? DeliveryContactPhone { get; set; }
         public string? DeliveryContactEmail { get; set; }
+    }
+
+    private class OrderServiceItemResponse
+    {
+        public Guid OrderItemId { get; set; }
+        public Guid? SourceProjectPartId { get; set; }
+        public string? ConfigurationSnapshotJson { get; set; }
+        public string? Technology { get; set; }
+        public int Quantity { get; set; }
     }
 }

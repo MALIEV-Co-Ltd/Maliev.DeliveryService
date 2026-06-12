@@ -73,6 +73,74 @@ public class OrderServiceClientTests
     }
 
     [Fact]
+    public async Task GetOrderAsync_WithOrderServiceItemsWireShape_ReturnsEveryProductionItem()
+    {
+        var orderId = "ORD-MULTI-ITEM";
+        var customerId = Guid.NewGuid();
+        var firstPartId = Guid.NewGuid();
+        var secondPartId = Guid.NewGuid();
+        var handler = new MultiResponseHttpMessageHandler(request =>
+        {
+            if (request.RequestUri?.AbsolutePath.EndsWith($"/order/v1/orders/{orderId}/items", StringComparison.Ordinal) == true)
+            {
+                return (HttpStatusCode.OK, new[]
+                {
+                    new
+                    {
+                        orderItemId = Guid.NewGuid(),
+                        sourceProjectPartId = firstPartId,
+                        materialId = Guid.NewGuid(),
+                        materialSnapshotJson = JsonSerializer.Serialize(new { sourceMaterialId = "pla-black" }),
+                        configurationSnapshotJson = JsonSerializer.Serialize(new { fileName = "gear.step", quantity = 2 }),
+                        technology = "FDM",
+                        volumeCm3 = 12.5m,
+                        quantity = 2,
+                        estimatedPrintTimeMinutes = 40
+                    },
+                    new
+                    {
+                        orderItemId = Guid.NewGuid(),
+                        sourceProjectPartId = secondPartId,
+                        materialId = Guid.NewGuid(),
+                        materialSnapshotJson = JsonSerializer.Serialize(new { sourceMaterialId = "resin-clear" }),
+                        configurationSnapshotJson = JsonSerializer.Serialize(new { fileName = "lens.step", quantity = 1 }),
+                        technology = "SLA",
+                        volumeCm3 = 4.25m,
+                        quantity = 1,
+                        estimatedPrintTimeMinutes = 25
+                    }
+                });
+            }
+
+            return (HttpStatusCode.OK, new
+            {
+                orderId,
+                customerId = customerId.ToString("D"),
+                serviceCategoryName = "3D Printing",
+                processTypeName = "FDM",
+                orderedQuantity = 3,
+                manufacturedQuantity = 3
+            });
+        });
+        var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://localhost") };
+        var client = new OrderServiceClient(httpClient, _mockLogger.Object);
+
+        var result = await client.GetOrderAsync(orderId);
+
+        Assert.NotNull(result);
+        Assert.Equal(2, result.Items.Count);
+        Assert.Equal(firstPartId.ToString("N"), result.Items[0].ProductCode);
+        Assert.Equal("gear.step", result.Items[0].ProductName);
+        Assert.Equal(2m, result.Items[0].QuantityOrdered);
+        Assert.Equal(2m, result.Items[0].QuantityManufactured);
+        Assert.Equal("pcs", result.Items[0].UnitOfMeasure);
+        Assert.Equal(secondPartId.ToString("N"), result.Items[1].ProductCode);
+        Assert.Equal("lens.step", result.Items[1].ProductName);
+        Assert.Equal(1m, result.Items[1].QuantityOrdered);
+        Assert.Equal(1m, result.Items[1].QuantityManufactured);
+    }
+
+    [Fact]
     public async Task GetOrderAsync_NotFound_ReturnsNull()
     {
         // Arrange
@@ -135,6 +203,22 @@ public class OrderServiceClientTests
             {
                 response.Content = new StringContent("{}"); // Empty valid JSON if OK and no data
             }
+            return Task.FromResult(response);
+        }
+    }
+
+    private sealed class MultiResponseHttpMessageHandler(
+        Func<HttpRequestMessage, (HttpStatusCode StatusCode, object? Body)> responseFactory) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            (HttpStatusCode statusCode, object? body) = responseFactory(request);
+            var response = new HttpResponseMessage(statusCode);
+            if (body != null)
+            {
+                response.Content = new StringContent(JsonSerializer.Serialize(body));
+            }
+
             return Task.FromResult(response);
         }
     }

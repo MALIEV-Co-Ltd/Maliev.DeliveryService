@@ -311,6 +311,7 @@ public class DeliveryNoteService : IDeliveryNoteService
             new DeliveryStatusChangedEventPayload(
                 deliveryNote.DeliveryNoteId,
                 deliveryNote.OrderId,
+                deliveryNote.CustomerId,
                 oldStatus.ToString(),
                 newStatus.ToString(),
                 deliveryNote.ActualDeliveryTime,
@@ -336,6 +337,7 @@ public class DeliveryNoteService : IDeliveryNoteService
                     deliveryNote.DeliveryNoteId,
                     deliveryNote.OrderId,
                     deliveryNote.PurchaseOrderId,
+                    deliveryNote.CustomerId,
                     deliveryNote.ActualDeliveryTime ?? DateTimeOffset.UtcNow,
                     deliveryNote.ReceivedByName ?? string.Empty
                 )), ct);

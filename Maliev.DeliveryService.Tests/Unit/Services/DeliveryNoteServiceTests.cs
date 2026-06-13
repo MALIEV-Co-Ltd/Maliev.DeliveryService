@@ -941,7 +941,8 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
 
         // Verify delivery completed event was published
         var completedEvents = _fakePublishEndpoint.GetPublishedMessages<Maliev.MessagingContracts.Contracts.Delivery.DeliveryCompletedEvent>();
-        Assert.Single(completedEvents);
+        var completedEvent = Assert.Single(completedEvents);
+        Assert.Equal(createRequest.CustomerId, completedEvent.Payload.CustomerId);
     }
 
     [Fact]
@@ -957,7 +958,8 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
 
         // Assert
         var statusChangedEvents = _fakePublishEndpoint.GetPublishedMessages<Maliev.MessagingContracts.Contracts.Delivery.DeliveryStatusChangedEvent>();
-        Assert.Single(statusChangedEvents);
+        var statusChangedEvent = Assert.Single(statusChangedEvents);
+        Assert.Equal(created.CustomerId, statusChangedEvent.Payload.CustomerId);
     }
 
     [Fact]

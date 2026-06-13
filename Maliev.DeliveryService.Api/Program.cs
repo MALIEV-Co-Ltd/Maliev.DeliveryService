@@ -50,6 +50,7 @@ try
         // Register all event consumers
         x.AddConsumer<OrderCompletedEventConsumer>();
         x.AddConsumer<PdfGenerationCompletedEventConsumer>();
+        x.AddConsumer<PdfGenerationFailedEventConsumer>();
     }); // RabbitMQ message bus (non-blocking startup)
 
     // IAM Registration

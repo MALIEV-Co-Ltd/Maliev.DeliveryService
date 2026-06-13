@@ -32,6 +32,12 @@ public class PdfGenerationCompletedEventConsumer : IConsumer<PdfGenerationComple
     public async Task Consume(ConsumeContext<PdfGenerationCompletedEvent> context)
     {
         var payload = context.Message.Payload;
+        if (payload is null)
+        {
+            _logger.LogWarning("Ignoring PdfGenerationCompletedEvent without payload");
+            return;
+        }
+
         if (!string.Equals(payload.DocumentType, "DeliveryNote", StringComparison.OrdinalIgnoreCase))
         {
             _logger.LogDebug(

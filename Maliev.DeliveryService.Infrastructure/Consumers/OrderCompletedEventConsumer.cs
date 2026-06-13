@@ -44,6 +44,15 @@ public class OrderCompletedEventConsumer : IConsumer<OrderCompletedEvent>
             "Received OrderCompletedEvent: OrderId={OrderId}, OrderNumber={OrderNumber}, CompletedAt={CompletedAt}",
             orderEvent.Payload.OrderId, orderEvent.Payload.OrderNumber, orderEvent.Payload.CompletedAt);
 
+        if (!IsRoutedToDeliveryService(orderEvent))
+        {
+            _logger.LogDebug(
+                "Skipping OrderCompletedEvent not routed to DeliveryService. OrderId={OrderId}, OrderNumber={OrderNumber}",
+                orderEvent.Payload.OrderId,
+                orderEvent.Payload.OrderNumber);
+            return;
+        }
+
         if (!orderEvent.Payload.JobSucceeded)
         {
             _logger.LogWarning(
@@ -145,5 +154,11 @@ public class OrderCompletedEventConsumer : IConsumer<OrderCompletedEvent>
                 orderEvent.Payload.OrderId);
             throw; // Re-throw to trigger MassTransit retry policy
         }
+    }
+
+    private static bool IsRoutedToDeliveryService(OrderCompletedEvent message)
+    {
+        return message.ConsumedBy.Any(consumer =>
+            string.Equals(consumer, "DeliveryService", StringComparison.OrdinalIgnoreCase));
     }
 }

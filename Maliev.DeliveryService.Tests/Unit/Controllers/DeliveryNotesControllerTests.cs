@@ -1,6 +1,7 @@
 using Maliev.DeliveryService.Api.Controllers;
 using Maliev.DeliveryService.Application.DTOs;
 using Maliev.DeliveryService.Application.Abstractions;
+using Maliev.MessagingContracts.Contracts.Delivery;
 using MassTransit;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -250,6 +251,13 @@ public class DeliveryNotesControllerTests
         var acceptedResult = Assert.IsType<AcceptedResult>(result.Result);
         var pdfResponse = Assert.IsType<PdfGenerationResponse>(acceptedResult.Value);
         Assert.Equal("DN-1", pdfResponse.DeliveryNoteId);
+        _mockPublishEndpoint.Verify(
+            x => x.Publish(
+                It.Is<DeliveryNotePdfRequestedEvent>(message =>
+                    message.Payload.DeliveryNoteId == "DN-1" &&
+                    message.ConsumedBy.Contains("PdfService", StringComparer.OrdinalIgnoreCase)),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]

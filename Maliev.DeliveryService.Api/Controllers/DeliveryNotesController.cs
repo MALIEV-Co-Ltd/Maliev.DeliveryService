@@ -191,7 +191,7 @@ public class DeliveryNotesController : ControllerBase
                 MessageType.Event,
                 "1.0",
                 "DeliveryService",
-                Array.Empty<string>(),
+                ["PdfService"],
                 Guid.NewGuid(),
                 null,
                 DateTimeOffset.UtcNow,

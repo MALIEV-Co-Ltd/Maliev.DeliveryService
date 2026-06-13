@@ -31,6 +31,17 @@ public class PdfGenerationCompletedEventConsumer : IConsumer<PdfGenerationComple
     /// <inheritdoc />
     public async Task Consume(ConsumeContext<PdfGenerationCompletedEvent> context)
     {
+        if (context.Message.ConsumedBy is not { Count: > 0 } consumedBy ||
+            !consumedBy.Contains("DeliveryService", StringComparer.OrdinalIgnoreCase))
+        {
+            _logger.LogDebug(
+                "Ignoring PDF completion for services {ConsumedBy}",
+                context.Message.ConsumedBy is { Count: > 0 }
+                    ? string.Join(",", context.Message.ConsumedBy)
+                    : "(none)");
+            return;
+        }
+
         var payload = context.Message.Payload;
         if (payload is null)
         {

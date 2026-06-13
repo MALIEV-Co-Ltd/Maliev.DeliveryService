@@ -12,7 +12,7 @@ public class DeliveryDbContextFactoryTests
         var previousConnectionString = Environment.GetEnvironmentVariable("ConnectionStrings__DeliveryDbContext");
         Environment.SetEnvironmentVariable(
             "ConnectionStrings__DeliveryDbContext",
-            "Host=localhost;Database=delivery_test;Username=test;Password=test");
+            "Host=localhost;Database=delivery_test;Username=test");
         var factory = new DeliveryDbContextFactory();
 
         try

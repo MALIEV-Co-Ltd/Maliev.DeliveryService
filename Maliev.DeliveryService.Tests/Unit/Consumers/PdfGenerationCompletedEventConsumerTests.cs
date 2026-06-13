@@ -99,6 +99,22 @@ public class PdfGenerationCompletedEventConsumerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Consume_DeliveryNotePdfCompletionNotRoutedToDeliveryService_DoesNotAttachFile()
+    {
+        await SeedDeliveryNoteAsync("DN-PDF-UNROUTED");
+        var consumer = new PdfGenerationCompletedEventConsumer(_dbContext, _logger.Object);
+
+        await consumer.Consume(CreateConsumeContext(
+            referenceId: "DN-PDF-UNROUTED",
+            documentType: "DeliveryNote",
+            storageUrl: "https://storage.example/dn-unrouted.pdf",
+            completedAt: DateTimeOffset.UtcNow,
+            consumedBy: ["NotificationService"]).Object);
+
+        Assert.Empty(await _dbContext.DeliveryNoteFiles.ToListAsync());
+    }
+
+    [Fact]
     public async Task Consume_MissingDeliveryNote_DoesNotAttachFile()
     {
         var consumer = new PdfGenerationCompletedEventConsumer(_dbContext, _logger.Object);
@@ -135,7 +151,8 @@ public class PdfGenerationCompletedEventConsumerTests : IAsyncLifetime
         string referenceId,
         string documentType,
         string storageUrl,
-        DateTimeOffset completedAt)
+        DateTimeOffset completedAt,
+        string[]? consumedBy = null)
     {
         var message = new PdfGenerationCompletedEvent(
             MessageId: Guid.NewGuid(),
@@ -143,7 +160,7 @@ public class PdfGenerationCompletedEventConsumerTests : IAsyncLifetime
             MessageType: MessageType.Event,
             MessageVersion: "1.0.0",
             PublishedBy: "PdfService",
-            ConsumedBy: ["DeliveryService"],
+            ConsumedBy: consumedBy ?? ["DeliveryService"],
             CorrelationId: Guid.NewGuid(),
             CausationId: null,
             OccurredAtUtc: DateTimeOffset.UtcNow,

@@ -960,6 +960,7 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
         // Assert
         var statusChangedEvents = _fakePublishEndpoint.GetPublishedMessages<Maliev.MessagingContracts.Contracts.Delivery.DeliveryStatusChangedEvent>();
         var statusChangedEvent = Assert.Single(statusChangedEvents);
+        Assert.Contains("NotificationService", statusChangedEvent.ConsumedBy, StringComparer.OrdinalIgnoreCase);
         Assert.Equal(created.CustomerId, statusChangedEvent.Payload.CustomerId);
     }
 

@@ -303,7 +303,7 @@ public class DeliveryNoteService : IDeliveryNoteService
             MessageType.Event,
             "1.0",
             "DeliveryService",
-            Array.Empty<string>(),
+            ["NotificationService"],
             Guid.NewGuid(),
             null,
             DateTimeOffset.UtcNow,

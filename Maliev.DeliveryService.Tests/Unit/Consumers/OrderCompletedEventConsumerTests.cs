@@ -148,6 +148,10 @@ public class OrderCompletedEventConsumerTests : IAsyncLifetime
             Assert.Equal("system-auto", pdfRequest.Context.Message.Payload.RequestedBy);
             Assert.Equal(orderEvent.CorrelationId, pdfRequest.Context.Message.CorrelationId);
             Assert.Equal(orderEvent.MessageId, pdfRequest.Context.Message.CausationId);
+            Assert.Contains(
+                "PdfService",
+                pdfRequest.Context.Message.ConsumedBy,
+                StringComparer.OrdinalIgnoreCase);
 
             _mockDeliveryService.Verify(x => x.CreateAsync(
                 It.Is<CreateDeliveryNoteRequest>(req =>

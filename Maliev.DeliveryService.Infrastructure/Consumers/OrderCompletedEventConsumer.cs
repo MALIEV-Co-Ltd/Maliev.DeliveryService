@@ -133,7 +133,7 @@ public class OrderCompletedEventConsumer : IConsumer<OrderCompletedEvent>
                 MessageType.Event,
                 "1.0",
                 "DeliveryService",
-                Array.Empty<string>(),
+                ["PdfService"],
                 orderEvent.CorrelationId,
                 orderEvent.MessageId,
                 DateTimeOffset.UtcNow,

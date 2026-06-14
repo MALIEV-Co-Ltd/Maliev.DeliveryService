@@ -62,16 +62,19 @@ public class OrderCompletedEventConsumer : IConsumer<OrderCompletedEvent>
             return;
         }
 
-        // Idempotency check: prevent duplicate delivery notes for the same order
+        // Idempotency check: prevent duplicate delivery notes for the same order.
+        // Older/manual flows may store the stable order GUID, while automatic flows store the order number.
+        var orderId = orderEvent.Payload.OrderId.ToString("D");
         var existingDeliveryNote = await _context.DeliveryNotes
-            .Where(dn => dn.OrderId == orderEvent.Payload.OrderNumber && !dn.IsDeleted)
+            .Where(dn => !dn.IsDeleted
+                && (dn.OrderId == orderEvent.Payload.OrderNumber || dn.OrderId == orderId))
             .FirstOrDefaultAsync(context.CancellationToken);
 
         if (existingDeliveryNote != null)
         {
             _logger.LogWarning(
-                "Delivery note already exists for OrderNumber={OrderNumber}, skipping auto-creation. Existing DeliveryNoteId={DeliveryNoteId}",
-                orderEvent.Payload.OrderNumber, existingDeliveryNote.DeliveryNoteId);
+                "Delivery note already exists for OrderId={OrderId}, OrderNumber={OrderNumber}, skipping auto-creation. Existing DeliveryNoteId={DeliveryNoteId}",
+                orderEvent.Payload.OrderId, orderEvent.Payload.OrderNumber, existingDeliveryNote.DeliveryNoteId);
             return;
         }
 

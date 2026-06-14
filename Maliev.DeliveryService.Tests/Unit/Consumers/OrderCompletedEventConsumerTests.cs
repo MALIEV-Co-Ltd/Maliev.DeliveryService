@@ -259,6 +259,85 @@ public class OrderCompletedEventConsumerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Consume_DuplicateOrderMatchedByOrderId_ShouldSkipCreation()
+    {
+        // Arrange
+        var orderId = Guid.NewGuid();
+        const string orderNumber = "ORD-DUPLICATE-ID";
+
+        _dbContext.DeliveryNotes.Add(new DeliveryNote
+        {
+            DeliveryNoteId = "DN-EXISTING-ID",
+            OrderId = orderId.ToString(),
+            CustomerId = Guid.NewGuid(),
+            Status = DeliveryStatus.Pending,
+            CreatedAt = DateTime.UtcNow,
+            CreatedBy = "test"
+        });
+        await _dbContext.SaveChangesAsync();
+
+        var harness = new InMemoryTestHarness();
+        var consumer = new OrderCompletedEventConsumer(
+            _mockDeliveryService.Object,
+            _mockOrderServiceClient.Object,
+            _dbContext,
+            _mockLogger.Object);
+
+        harness.Consumer(() => consumer);
+
+        await harness.Start();
+
+        try
+        {
+            var payload = new OrderCompletedEventPayload(
+                orderId,
+                orderNumber,
+                Guid.NewGuid(),
+                Guid.NewGuid(),
+                DateTimeOffset.UtcNow,
+                DateTimeOffset.UtcNow,
+                Guid.NewGuid(),
+                true,
+                null,
+                null,
+                null,
+                null,
+                new List<OrderCompletedEventPayloadItemsItem>());
+
+            var orderEvent = new OrderCompletedEvent(
+                Guid.NewGuid(),
+                nameof(OrderCompletedEvent),
+                MessageType.Event,
+                "1.0",
+                "OrderService",
+                ["DeliveryService"],
+                Guid.NewGuid(),
+                null,
+                DateTimeOffset.UtcNow,
+                false,
+                payload);
+
+            // Act
+            await harness.Bus.Publish(orderEvent);
+
+            // Assert
+            Assert.True(await harness.Consumed.SelectAsync<OrderCompletedEvent>().Any());
+            _mockOrderServiceClient.Verify(x => x.GetOrderAsync(
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()), Times.Never);
+            _mockDeliveryService.Verify(x => x.CreateAsync(
+                It.IsAny<CreateDeliveryNoteRequest>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()), Times.Never);
+            Assert.False(await harness.Published.SelectAsync<DeliveryNotePdfRequestedEvent>().Any());
+        }
+        finally
+        {
+            await harness.Stop();
+        }
+    }
+
+    [Fact]
     public async Task Consume_WhenEventNotRoutedToDeliveryService_ShouldSkipCreation()
     {
         // Arrange

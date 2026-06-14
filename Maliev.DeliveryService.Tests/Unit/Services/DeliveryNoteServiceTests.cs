@@ -965,6 +965,25 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task UpdateStatusAsync_DuplicateStatusRetry_ReturnsCurrentStatusWithoutRepublishing()
+    {
+        // Arrange
+        var created = await CreateTestDeliveryNote();
+        await _service.UpdateStatusAsync(created.DeliveryNoteId,
+            new UpdateDeliveryStatusRequest { NewStatus = "InTransit" }, "test-user");
+        _fakePublishEndpoint.Clear();
+
+        // Act
+        var result = await _service.UpdateStatusAsync(created.DeliveryNoteId,
+            new UpdateDeliveryStatusRequest { NewStatus = "InTransit" }, "test-user");
+
+        // Assert
+        Assert.Equal("InTransit", result.Status);
+        Assert.Empty(_fakePublishEndpoint.GetPublishedMessages<Maliev.MessagingContracts.Contracts.Delivery.DeliveryStatusChangedEvent>());
+        Assert.Empty(_fakePublishEndpoint.GetPublishedMessages<Maliev.MessagingContracts.Contracts.Delivery.DeliveryCompletedEvent>());
+    }
+
+    [Fact]
     public async Task AddFileAsync_InvalidContentType_ThrowsArgumentException()
     {
         // Arrange

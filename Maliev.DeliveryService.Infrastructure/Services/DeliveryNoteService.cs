@@ -282,6 +282,14 @@ public class DeliveryNoteService : IDeliveryNoteService
             throw new ArgumentException($"Invalid status: {request.NewStatus}");
         }
 
+        if (deliveryNote.Status == newStatus)
+        {
+            _logger.LogInformation(
+                "Ignoring duplicate delivery note status update: {DeliveryNoteId}, Status: {Status}, UpdatedBy: {UpdatedBy}",
+                deliveryNoteId, newStatus, updatedBy);
+            return deliveryNote.ToResponse();
+        }
+
         ValidateStatusTransition(deliveryNote.Status, newStatus, request);
 
         var oldStatus = deliveryNote.Status;

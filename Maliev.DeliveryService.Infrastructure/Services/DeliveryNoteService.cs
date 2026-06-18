@@ -152,6 +152,39 @@ public class DeliveryNoteService : IDeliveryNoteService
     }
 
     /// <inheritdoc />
+    public async Task<List<DeliveryStatusAuditResponse>> GetStatusAuditsAsync(
+        string deliveryNoteId,
+        string principalId,
+        CancellationToken ct = default)
+    {
+        var deliveryNote = await _context.DeliveryNotes
+            .AsNoTracking()
+            .FirstOrDefaultAsync(dn => dn.DeliveryNoteId == deliveryNoteId, ct);
+
+        if (deliveryNote == null)
+        {
+            throw new InvalidOperationException($"Delivery note {deliveryNoteId} not found");
+        }
+
+        await EnsureCanAccessCustomerAsync(principalId, deliveryNote.CustomerId, ct);
+
+        return await _context.DeliveryStatusAudits
+            .AsNoTracking()
+            .Where(audit => audit.DeliveryNoteId == deliveryNoteId)
+            .OrderBy(audit => audit.ChangedAt)
+            .Select(audit => new DeliveryStatusAuditResponse
+            {
+                Id = audit.Id,
+                DeliveryNoteId = audit.DeliveryNoteId,
+                PreviousStatus = audit.PreviousStatus.ToString(),
+                NewStatus = audit.NewStatus.ToString(),
+                ChangedBy = audit.ChangedBy,
+                ChangedAt = audit.ChangedAt
+            })
+            .ToListAsync(ct);
+    }
+
+    /// <inheritdoc />
     public async Task<PaginatedResponse<DeliveryNoteSummaryDto>> SearchAsync(
         DeliveryNoteFilterRequest filter,
         string principalId,

@@ -151,6 +151,30 @@ public class DeliveryNotesControllerTests
     }
 
     [Fact]
+    public async Task GetDeliveryStatusAudits_ReturnsOk()
+    {
+        var response = new List<DeliveryStatusAuditResponse>
+        {
+            new()
+            {
+                Id = Guid.NewGuid(),
+                DeliveryNoteId = "DN-1",
+                PreviousStatus = "Pending",
+                NewStatus = "InTransit",
+                ChangedBy = "test-user",
+                ChangedAt = DateTime.UtcNow
+            }
+        };
+        _mockService.Setup(x => x.GetStatusAuditsAsync("DN-1", "test-user", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(response);
+
+        var result = await _controller.GetDeliveryStatusAudits("DN-1", CancellationToken.None);
+
+        var okResult = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal(response, okResult.Value);
+    }
+
+    [Fact]
     public async Task GetDeliveryNote_Found_ReturnsOk()
     {
         // Arrange

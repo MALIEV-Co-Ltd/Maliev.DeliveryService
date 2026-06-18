@@ -19,6 +19,11 @@ public interface IDeliveryNoteService
     Task<DeliveryNoteResponse?> GetByIdAsync(string deliveryNoteId, CancellationToken ct = default);
 
     /// <summary>
+    /// Gets status audit entries for a delivery note.
+    /// </summary>
+    Task<List<DeliveryStatusAuditResponse>> GetStatusAuditsAsync(string deliveryNoteId, string principalId, CancellationToken ct = default);
+
+    /// <summary>
     /// Updates the status of an existing delivery note.
     /// </summary>
     Task<DeliveryNoteResponse> UpdateStatusAsync(string deliveryNoteId, UpdateDeliveryStatusRequest request, string updatedBy, CancellationToken ct = default);

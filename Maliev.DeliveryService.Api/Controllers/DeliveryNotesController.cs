@@ -118,6 +118,33 @@ public class DeliveryNotesController : ControllerBase
     }
 
     /// <summary>
+    /// Get status audit history for a delivery note by ID
+    /// </summary>
+    [HttpGet("{id}/status-audits")]
+    [RequirePermission(DeliveryPermissions.DeliveryNotes.Read)]
+    [ProducesResponseType(typeof(List<DeliveryStatusAuditResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<List<DeliveryStatusAuditResponse>>> GetDeliveryStatusAudits(
+        [FromRoute] string id,
+        CancellationToken ct)
+    {
+        try
+        {
+            var principalId = User.GetPrincipalId();
+            var result = await _deliveryNoteService.GetStatusAuditsAsync(id, principalId, ct);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("not found"))
+        {
+            return NotFound();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>
     /// Update delivery note status
     /// </summary>
     [HttpPatch("{id}/status")]

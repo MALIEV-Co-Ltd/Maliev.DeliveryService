@@ -90,7 +90,14 @@ public class OrderCompletedEventConsumer : IConsumer<OrderCompletedEvent>
             var orderDetails = await _orderServiceClient.GetOrderAsync(
                 payload.OrderNumber,
                 context.CancellationToken);
-            var deliveryItems = orderDetails?.Items.Count > 0
+
+            if (orderDetails is null)
+            {
+                throw new InvalidOperationException(
+                    $"OrderService returned no details for order {payload.OrderNumber}; delivery note snapshots cannot be created.");
+            }
+
+            var deliveryItems = orderDetails.Items.Count > 0
                 ? orderDetails.Items.Select(item =>
                 {
                     var manufacturedQuantity = item.QuantityManufactured > 0
@@ -121,21 +128,21 @@ public class OrderCompletedEventConsumer : IConsumer<OrderCompletedEvent>
             var deliveryNoteRequest = new CreateDeliveryNoteRequest
             {
                 OrderId = payload.OrderNumber,
-                CustomerId = orderDetails?.CustomerId == Guid.Empty
+                CustomerId = orderDetails.CustomerId == Guid.Empty
                     ? payload.CustomerId
-                    : orderDetails?.CustomerId ?? payload.CustomerId,
-                CustomerName = orderDetails?.CustomerName,
+                    : orderDetails.CustomerId,
+                CustomerName = orderDetails.CustomerName,
                 DeliveryDate = DateTime.UtcNow.AddDays(1), // Schedule for next day by default
-                ShippingAddressId = orderDetails?.ShippingAddressId,
-                ShippingAddressLine1 = orderDetails?.ShippingAddressLine1,
-                ShippingAddressLine2 = orderDetails?.ShippingAddressLine2,
-                ShippingCity = orderDetails?.ShippingCity,
-                ShippingProvince = orderDetails?.ShippingProvince,
-                ShippingPostalCode = orderDetails?.ShippingPostalCode,
-                ShippingCountry = orderDetails?.ShippingCountry,
-                DeliveryContactName = orderDetails?.DeliveryContactName,
-                DeliveryContactPhone = orderDetails?.DeliveryContactPhone,
-                DeliveryContactEmail = orderDetails?.DeliveryContactEmail,
+                ShippingAddressId = orderDetails.ShippingAddressId,
+                ShippingAddressLine1 = orderDetails.ShippingAddressLine1,
+                ShippingAddressLine2 = orderDetails.ShippingAddressLine2,
+                ShippingCity = orderDetails.ShippingCity,
+                ShippingProvince = orderDetails.ShippingProvince,
+                ShippingPostalCode = orderDetails.ShippingPostalCode,
+                ShippingCountry = orderDetails.ShippingCountry,
+                DeliveryContactName = orderDetails.DeliveryContactName,
+                DeliveryContactPhone = orderDetails.DeliveryContactPhone,
+                DeliveryContactEmail = orderDetails.DeliveryContactEmail,
                 Items = deliveryItems
             };
 

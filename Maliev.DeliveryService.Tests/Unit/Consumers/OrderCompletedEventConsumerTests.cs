@@ -359,6 +359,69 @@ public class OrderCompletedEventConsumerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Consume_WhenOrderDetailsMissing_ThrowsWithoutCreatingDeliveryNote()
+    {
+        var consumer = new OrderCompletedEventConsumer(
+            _mockDeliveryService.Object,
+            _mockOrderServiceClient.Object,
+            _dbContext,
+            _mockLogger.Object);
+        const string orderNumber = "ORD-MISSING-DETAILS";
+        _mockOrderServiceClient
+            .Setup(x => x.GetOrderAsync(orderNumber, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((OrderDetailsDto?)null);
+        _mockDeliveryService
+            .Setup(x => x.CreateAsync(
+                It.IsAny<CreateDeliveryNoteRequest>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DeliveryNoteResponse
+            {
+                DeliveryNoteId = "DN-SHOULD-NOT-CREATE",
+                Status = DeliveryStatus.Pending.ToString()
+            });
+        var contextMock = new Mock<ConsumeContext<OrderCompletedEvent>>();
+        contextMock
+            .Setup(context => context.Message)
+            .Returns(new OrderCompletedEvent(
+                Guid.NewGuid(),
+                nameof(OrderCompletedEvent),
+                MessageType.Event,
+                "1.0",
+                "OrderService",
+                ["DeliveryService"],
+                Guid.NewGuid(),
+                null,
+                DateTimeOffset.UtcNow,
+                false,
+                new OrderCompletedEventPayload(
+                    Guid.NewGuid(),
+                    orderNumber,
+                    Guid.NewGuid(),
+                    Guid.NewGuid(),
+                    DateTimeOffset.UtcNow,
+                    DateTimeOffset.UtcNow,
+                    Guid.NewGuid(),
+                    true,
+                    null,
+                    null,
+                    null,
+                    null,
+                    new List<OrderCompletedEventPayloadItemsItem>
+                    {
+                        new(Guid.NewGuid(), "P1", "Product 1", 1.0, 100.0, 100.0)
+                    })));
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => consumer.Consume(contextMock.Object));
+
+        Assert.Contains(orderNumber, exception.Message, StringComparison.Ordinal);
+        _mockDeliveryService.Verify(x => x.CreateAsync(
+            It.IsAny<CreateDeliveryNoteRequest>(),
+            It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Consume_DuplicateOrderMatchedByOrderId_ShouldSkipCreation()
     {
         // Arrange

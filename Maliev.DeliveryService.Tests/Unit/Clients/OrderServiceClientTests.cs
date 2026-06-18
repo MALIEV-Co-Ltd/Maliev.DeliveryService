@@ -35,6 +35,7 @@ public class OrderServiceClientTests
             OrderedQuantity = 10,
             ManufacturedQuantity = 10,
             BillingAddressId = billingAddressId,
+            BillingCompanyName = "Bangkok Precision Parts",
             ShippingAddressId = shippingAddressId,
             ShippingAddressLine1 = "88 Rama IX Road",
             ShippingAddressLine2 = "Floor 12",
@@ -57,6 +58,7 @@ public class OrderServiceClientTests
         Assert.NotNull(result);
         Assert.Equal(orderId, result.OrderId);
         Assert.Equal("PO-456", result.OrderNumber);
+        Assert.Equal("Bangkok Precision Parts", result.CustomerName);
         Assert.Equal(billingAddressId, result.BillingAddressId);
         Assert.Equal(shippingAddressId, result.ShippingAddressId);
         Assert.Equal("88 Rama IX Road", result.ShippingAddressLine1);

@@ -61,7 +61,7 @@ public class OrderServiceClient : IOrderServiceClient
                 OrderId = orderData.OrderId,
                 OrderNumber = orderData.CustomerPoNumber ?? orderData.OrderId,
                 CustomerId = Guid.TryParse(orderData.CustomerId, out var cid) ? cid : Guid.Empty,
-                CustomerName = "Unknown", // CustomerName is not provided by OrderService
+                CustomerName = ResolveCustomerName(orderData),
                 BillingAddressId = orderData.BillingAddressId,
                 ShippingAddressId = orderData.ShippingAddressId,
                 ShippingAddressLine1 = orderData.ShippingAddressLine1,
@@ -137,6 +137,21 @@ public class OrderServiceClient : IOrderServiceClient
         };
     }
 
+    private static string ResolveCustomerName(OrderServiceResponse orderData)
+    {
+        if (!string.IsNullOrWhiteSpace(orderData.BillingCompanyName))
+        {
+            return orderData.BillingCompanyName;
+        }
+
+        if (!string.IsNullOrWhiteSpace(orderData.DeliveryContactName))
+        {
+            return orderData.DeliveryContactName;
+        }
+
+        return "Unknown";
+    }
+
     private static OrderLineItemDto MapItem(OrderServiceItemResponse item)
     {
         return new OrderLineItemDto
@@ -183,6 +198,7 @@ public class OrderServiceClient : IOrderServiceClient
         public int? OrderedQuantity { get; set; }
         public int? ManufacturedQuantity { get; set; }
         public Guid? BillingAddressId { get; set; }
+        public string? BillingCompanyName { get; set; }
         public Guid? ShippingAddressId { get; set; }
         public string? ShippingAddressLine1 { get; set; }
         public string? ShippingAddressLine2 { get; set; }

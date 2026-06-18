@@ -302,6 +302,7 @@ public class DeliveryNoteService : IDeliveryNoteService
         {
             deliveryNote.ActualDeliveryTime = request.ActualDeliveryTime ?? DateTime.UtcNow;
             deliveryNote.ReceivedByName = request.ReceivedByName;
+            deliveryNote.SignatureFileId = request.SignatureFileId;
             deliveryNote.SignedAt = DateTime.UtcNow;
         }
 

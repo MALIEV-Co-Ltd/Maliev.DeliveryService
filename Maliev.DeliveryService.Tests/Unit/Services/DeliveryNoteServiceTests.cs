@@ -947,6 +947,35 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task UpdateStatusAsync_ToDelivered_PersistsSignatureFileId()
+    {
+        // Arrange
+        var created = await CreateTestDeliveryNote();
+        var signatureFileId = Guid.NewGuid();
+
+        await _service.UpdateStatusAsync(created.DeliveryNoteId,
+            new UpdateDeliveryStatusRequest { NewStatus = "InTransit" }, "test-user");
+
+        // Act
+        var result = await _service.UpdateStatusAsync(created.DeliveryNoteId,
+            new UpdateDeliveryStatusRequest
+            {
+                NewStatus = "Delivered",
+                ReceivedByName = "John Doe",
+                SignatureFileId = signatureFileId
+            },
+            "test-user");
+
+        // Assert
+        Assert.Equal(signatureFileId, result.SignatureFileId);
+
+        var persisted = await _context.DeliveryNotes
+            .AsNoTracking()
+            .SingleAsync(dn => dn.DeliveryNoteId == created.DeliveryNoteId);
+        Assert.Equal(signatureFileId, persisted.SignatureFileId);
+    }
+
+    [Fact]
     public async Task UpdateStatusAsync_ToInTransit_PublishesStatusChangedEvent()
     {
         // Arrange

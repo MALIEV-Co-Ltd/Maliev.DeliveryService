@@ -40,6 +40,7 @@ public static class DtoMappingExtensions
             ShippingCostCurrency = entity.ShippingCostCurrency,
 
             ReceivedByName = entity.ReceivedByName,
+            SignatureFileId = entity.SignatureFileId,
             SignedAt = entity.SignedAt,
 
             InternalNotes = entity.InternalNotes,

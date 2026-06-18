@@ -116,6 +116,11 @@ public class DeliveryNoteResponse
     public string? ReceivedByName { get; set; }
 
     /// <summary>
+    /// Gets or sets the signature file ID.
+    /// </summary>
+    public Guid? SignatureFileId { get; set; }
+
+    /// <summary>
     /// Gets or sets the signed at date and time.
     /// </summary>
     public DateTime? SignedAt { get; set; }

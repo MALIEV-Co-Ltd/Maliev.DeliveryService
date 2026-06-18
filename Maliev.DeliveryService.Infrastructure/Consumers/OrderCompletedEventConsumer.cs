@@ -91,14 +91,21 @@ public class OrderCompletedEventConsumer : IConsumer<OrderCompletedEvent>
                 payload.OrderNumber,
                 context.CancellationToken);
             var deliveryItems = orderDetails?.Items.Count > 0
-                ? orderDetails.Items.Select(item => new CreateDeliveryNoteItemRequest
+                ? orderDetails.Items.Select(item =>
                 {
-                    ProductCode = item.ProductCode,
-                    ProductName = item.ProductName,
-                    QuantityOrdered = item.QuantityOrdered,
-                    QuantityManufactured = item.QuantityManufactured,
-                    QuantityDelivered = item.QuantityManufactured,
-                    UnitOfMeasure = item.UnitOfMeasure
+                    var manufacturedQuantity = item.QuantityManufactured > 0
+                        ? item.QuantityManufactured
+                        : item.QuantityOrdered;
+
+                    return new CreateDeliveryNoteItemRequest
+                    {
+                        ProductCode = item.ProductCode,
+                        ProductName = item.ProductName,
+                        QuantityOrdered = item.QuantityOrdered,
+                        QuantityManufactured = manufacturedQuantity,
+                        QuantityDelivered = manufacturedQuantity,
+                        UnitOfMeasure = item.UnitOfMeasure
+                    };
                 }).ToList()
                 : payload.Items.Select(item => new CreateDeliveryNoteItemRequest
                 {

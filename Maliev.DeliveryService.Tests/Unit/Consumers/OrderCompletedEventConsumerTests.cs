@@ -259,6 +259,106 @@ public class OrderCompletedEventConsumerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Consume_OrderDetailsWithMissingManufacturedQuantity_UsesOrderedQuantityForDeliveryDraft()
+    {
+        var harness = new InMemoryTestHarness();
+        _mockDeliveryService.Setup(x => x.CreateAsync(
+                It.IsAny<CreateDeliveryNoteRequest>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DeliveryNoteResponse
+            {
+                DeliveryNoteId = "DN-2025-MISSING-MFG",
+                Status = DeliveryStatus.Pending.ToString()
+            });
+
+        var consumer = new OrderCompletedEventConsumer(
+            _mockDeliveryService.Object,
+            _mockOrderServiceClient.Object,
+            _dbContext,
+            _mockLogger.Object);
+
+        harness.Consumer(() => consumer);
+        await harness.Start();
+
+        try
+        {
+            var orderId = Guid.NewGuid();
+            const string orderNumber = "ORD-MISSING-MFG";
+            var customerId = Guid.NewGuid();
+            _mockOrderServiceClient
+                .Setup(x => x.GetOrderAsync(orderNumber, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new OrderDetailsDto
+                {
+                    OrderId = orderNumber,
+                    OrderNumber = orderNumber,
+                    CustomerId = customerId,
+                    CustomerName = "Acme Manufacturing",
+                    Items =
+                    [
+                        new OrderLineItemDto
+                        {
+                            ProductCode = "P1-MISSING-MFG",
+                            ProductName = "Missing Manufactured Quantity",
+                            QuantityOrdered = 6,
+                            QuantityManufactured = 0,
+                            UnitOfMeasure = "pcs"
+                        }
+                    ]
+                });
+
+            var payload = new OrderCompletedEventPayload(
+                orderId,
+                orderNumber,
+                customerId,
+                Guid.NewGuid(),
+                DateTimeOffset.UtcNow.AddHours(-1),
+                DateTimeOffset.UtcNow,
+                Guid.NewGuid(),
+                true,
+                null,
+                null,
+                null,
+                null,
+                new List<OrderCompletedEventPayloadItemsItem>
+                {
+                    new(Guid.NewGuid(), "P1-MISSING-MFG", "Missing Manufactured Quantity", 6.0, 100.0, 600.0)
+                });
+
+            var orderEvent = new OrderCompletedEvent(
+                Guid.NewGuid(),
+                nameof(OrderCompletedEvent),
+                MessageType.Event,
+                "1.0",
+                "OrderService",
+                ["DeliveryService"],
+                Guid.NewGuid(),
+                null,
+                DateTimeOffset.UtcNow,
+                false,
+                payload);
+
+            await harness.Bus.Publish(orderEvent);
+
+            Assert.True(await harness.Consumed.SelectAsync<OrderCompletedEvent>().Any());
+            Assert.True(await harness.Published.SelectAsync<DeliveryNotePdfRequestedEvent>().Any());
+            _mockDeliveryService.Verify(x => x.CreateAsync(
+                It.Is<CreateDeliveryNoteRequest>(req =>
+                    req.Items.Count == 1 &&
+                    req.Items[0].ProductCode == "P1-MISSING-MFG" &&
+                    req.Items[0].QuantityOrdered == 6m &&
+                    req.Items[0].QuantityManufactured == 6m &&
+                    req.Items[0].QuantityDelivered == 6m),
+                "system-auto",
+                It.IsAny<CancellationToken>()), Times.Once);
+        }
+        finally
+        {
+            await harness.Stop();
+        }
+    }
+
+    [Fact]
     public async Task Consume_DuplicateOrderMatchedByOrderId_ShouldSkipCreation()
     {
         // Arrange

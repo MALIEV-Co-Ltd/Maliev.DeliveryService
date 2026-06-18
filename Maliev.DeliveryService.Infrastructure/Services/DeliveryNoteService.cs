@@ -293,17 +293,28 @@ public class DeliveryNoteService : IDeliveryNoteService
         ValidateStatusTransition(deliveryNote.Status, newStatus, request);
 
         var oldStatus = deliveryNote.Status;
+        var changedAt = DateTime.UtcNow;
         deliveryNote.Status = newStatus;
-        deliveryNote.UpdatedAt = DateTime.UtcNow;
+        deliveryNote.UpdatedAt = changedAt;
         deliveryNote.UpdatedBy = updatedBy;
+
+        _context.DeliveryStatusAudits.Add(new DeliveryStatusAudit
+        {
+            Id = Guid.NewGuid(),
+            DeliveryNoteId = deliveryNote.DeliveryNoteId,
+            PreviousStatus = oldStatus,
+            NewStatus = newStatus,
+            ChangedBy = updatedBy,
+            ChangedAt = changedAt
+        });
 
         // Set delivery confirmation fields if status is Delivered
         if (newStatus == DeliveryStatus.Delivered)
         {
-            deliveryNote.ActualDeliveryTime = request.ActualDeliveryTime ?? DateTime.UtcNow;
+            deliveryNote.ActualDeliveryTime = request.ActualDeliveryTime ?? changedAt;
             deliveryNote.ReceivedByName = request.ReceivedByName;
             deliveryNote.SignatureFileId = request.SignatureFileId;
-            deliveryNote.SignedAt = DateTime.UtcNow;
+            deliveryNote.SignedAt = changedAt;
         }
 
         await PublishEventAsync(new DeliveryStatusChangedEvent(

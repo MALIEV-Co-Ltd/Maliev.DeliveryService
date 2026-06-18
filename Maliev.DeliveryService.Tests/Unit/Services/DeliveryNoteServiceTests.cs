@@ -59,6 +59,7 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
         // Clean up tables before each test
         await _context.Database.ExecuteSqlRawAsync("DELETE FROM delivery_note_files");
         await _context.Database.ExecuteSqlRawAsync("DELETE FROM delivery_note_items");
+        await _context.Database.ExecuteSqlRawAsync("DELETE FROM delivery_status_audits");
         await _context.Database.ExecuteSqlRawAsync("DELETE FROM delivery_notes");
         await _context.Database.ExecuteSqlRawAsync("DELETE FROM addresses");
     }
@@ -256,6 +257,60 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
         Assert.Single(statusChangedEvents);
         Assert.Equal("Pending", statusChangedEvents[0].Payload.PreviousStatus);
         Assert.Equal("InTransit", statusChangedEvents[0].Payload.NewStatus);
+    }
+
+    [Fact]
+    public async Task UpdateDeliveryStatusAsync_ValidTransition_PersistsTimestampedAudit()
+    {
+        var createRequest = new CreateDeliveryNoteRequest
+        {
+            OrderId = "ORD-2026-AUDIT",
+            CustomerId = Guid.NewGuid(),
+            DeliveryDate = DateTime.UtcNow.AddDays(1),
+            Items = new List<CreateDeliveryNoteItemRequest>
+            {
+                new()
+                {
+                    ProductCode = "PROD-AUDIT",
+                    ProductName = "Audited Product",
+                    QuantityOrdered = 2,
+                    QuantityManufactured = 2,
+                    QuantityDelivered = 2,
+                    UnitOfMeasure = "pcs"
+                }
+            }
+        };
+        var created = await _service.CreateAsync(createRequest, "creator");
+
+        var beforeTransition = DateTime.UtcNow.AddSeconds(-1);
+        await _service.UpdateStatusAsync(
+            created.DeliveryNoteId,
+            new UpdateDeliveryStatusRequest { NewStatus = "InTransit" },
+            "scanner-user");
+
+        await using var command = _context.Database.GetDbConnection().CreateCommand();
+        command.CommandText = """
+            SELECT previous_status, new_status, changed_by, changed_at
+            FROM delivery_status_audits
+            WHERE delivery_note_id = @deliveryNoteId
+            """;
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = "deliveryNoteId";
+        parameter.Value = created.DeliveryNoteId;
+        command.Parameters.Add(parameter);
+
+        if (command.Connection!.State != System.Data.ConnectionState.Open)
+        {
+            await command.Connection.OpenAsync();
+        }
+
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal("Pending", reader.GetString(0));
+        Assert.Equal("InTransit", reader.GetString(1));
+        Assert.Equal("scanner-user", reader.GetString(2));
+        Assert.True(reader.GetDateTime(3) >= beforeTransition);
+        Assert.False(await reader.ReadAsync());
     }
 
     [Fact]

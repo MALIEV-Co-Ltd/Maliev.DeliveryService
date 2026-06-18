@@ -35,6 +35,11 @@ public class DeliveryDbContext : DbContext
     public DbSet<DeliveryNoteFile> DeliveryNoteFiles => Set<DeliveryNoteFile>();
 
     /// <summary>
+    /// Gets or sets the Delivery Status Audits collection.
+    /// </summary>
+    public DbSet<DeliveryStatusAudit> DeliveryStatusAudits => Set<DeliveryStatusAudit>();
+
+    /// <summary>
     /// Gets or sets the Addresses collection.
     /// </summary>
     public DbSet<Address> Addresses => Set<Address>();
@@ -51,6 +56,7 @@ public class DeliveryDbContext : DbContext
         modelBuilder.ApplyConfiguration(new DeliveryNoteConfiguration());
         modelBuilder.ApplyConfiguration(new DeliveryNoteItemConfiguration());
         modelBuilder.ApplyConfiguration(new DeliveryNoteFileConfiguration());
+        modelBuilder.ApplyConfiguration(new DeliveryStatusAuditConfiguration());
         modelBuilder.ApplyConfiguration(new AddressConfiguration());
 
         modelBuilder.AddInboxStateEntity();

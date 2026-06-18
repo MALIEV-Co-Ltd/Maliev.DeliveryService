@@ -406,6 +406,92 @@ public class OrderCompletedEventConsumerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Consume_WithoutPayload_ShouldSkipDeliveryNoteCreation()
+    {
+        var consumer = new OrderCompletedEventConsumer(
+            _mockDeliveryService.Object,
+            _mockOrderServiceClient.Object,
+            _dbContext,
+            _mockLogger.Object);
+        var contextMock = new Mock<ConsumeContext<OrderCompletedEvent>>();
+        contextMock
+            .Setup(context => context.Message)
+            .Returns(new OrderCompletedEvent(
+                Guid.NewGuid(),
+                nameof(OrderCompletedEvent),
+                MessageType.Event,
+                "1.0",
+                "OrderService",
+                ["DeliveryService"],
+                Guid.NewGuid(),
+                null,
+                DateTimeOffset.UtcNow,
+                false,
+                null!));
+
+        await consumer.Consume(contextMock.Object);
+
+        _mockOrderServiceClient.Verify(x => x.GetOrderAsync(
+            It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+        _mockDeliveryService.Verify(x => x.CreateAsync(
+            It.IsAny<CreateDeliveryNoteRequest>(),
+            It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Consume_WithoutRoutingList_ShouldSkipDeliveryNoteCreation()
+    {
+        var consumer = new OrderCompletedEventConsumer(
+            _mockDeliveryService.Object,
+            _mockOrderServiceClient.Object,
+            _dbContext,
+            _mockLogger.Object);
+        var contextMock = new Mock<ConsumeContext<OrderCompletedEvent>>();
+        contextMock
+            .Setup(context => context.Message)
+            .Returns(new OrderCompletedEvent(
+                Guid.NewGuid(),
+                nameof(OrderCompletedEvent),
+                MessageType.Event,
+                "1.0",
+                "OrderService",
+                null!,
+                Guid.NewGuid(),
+                null,
+                DateTimeOffset.UtcNow,
+                false,
+                new OrderCompletedEventPayload(
+                    Guid.NewGuid(),
+                    "ORD-NO-ROUTING",
+                    Guid.NewGuid(),
+                    Guid.NewGuid(),
+                    DateTimeOffset.UtcNow,
+                    DateTimeOffset.UtcNow,
+                    Guid.NewGuid(),
+                    true,
+                    null,
+                    null,
+                    null,
+                    null,
+                    new List<OrderCompletedEventPayloadItemsItem>
+                    {
+                        new(Guid.NewGuid(), "P1", "Product 1", 10.0, 100.0, 1000.0)
+                    })));
+
+        await consumer.Consume(contextMock.Object);
+
+        _mockOrderServiceClient.Verify(x => x.GetOrderAsync(
+            It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+        _mockDeliveryService.Verify(x => x.CreateAsync(
+            It.IsAny<CreateDeliveryNoteRequest>(),
+            It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Consume_FailedOrderCompletion_ShouldSkipDeliveryNoteCreation()
     {
         // Arrange

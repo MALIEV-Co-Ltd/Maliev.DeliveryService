@@ -39,49 +39,56 @@ public class OrderCompletedEventConsumer : IConsumer<OrderCompletedEvent>
     public async Task Consume(ConsumeContext<OrderCompletedEvent> context)
     {
         var orderEvent = context.Message;
+        var payload = orderEvent.Payload;
+
+        if (payload is null)
+        {
+            _logger.LogWarning("OrderCompletedEvent received without payload; skipping");
+            return;
+        }
 
         _logger.LogInformation(
             "Received OrderCompletedEvent: OrderId={OrderId}, OrderNumber={OrderNumber}, CompletedAt={CompletedAt}",
-            orderEvent.Payload.OrderId, orderEvent.Payload.OrderNumber, orderEvent.Payload.CompletedAt);
+            payload.OrderId, payload.OrderNumber, payload.CompletedAt);
 
         if (!IsRoutedToDeliveryService(orderEvent))
         {
             _logger.LogDebug(
                 "Skipping OrderCompletedEvent not routed to DeliveryService. OrderId={OrderId}, OrderNumber={OrderNumber}",
-                orderEvent.Payload.OrderId,
-                orderEvent.Payload.OrderNumber);
+                payload.OrderId,
+                payload.OrderNumber);
             return;
         }
 
-        if (!orderEvent.Payload.JobSucceeded)
+        if (!payload.JobSucceeded)
         {
             _logger.LogWarning(
                 "Skipping delivery note auto-creation for failed order completion. OrderId={OrderId}, OrderNumber={OrderNumber}",
-                orderEvent.Payload.OrderId,
-                orderEvent.Payload.OrderNumber);
+                payload.OrderId,
+                payload.OrderNumber);
             return;
         }
 
         // Idempotency check: prevent duplicate delivery notes for the same order.
         // Older/manual flows may store the stable order GUID, while automatic flows store the order number.
-        var orderId = orderEvent.Payload.OrderId.ToString("D");
+        var orderId = payload.OrderId.ToString("D");
         var existingDeliveryNote = await _context.DeliveryNotes
             .Where(dn => !dn.IsDeleted
-                && (dn.OrderId == orderEvent.Payload.OrderNumber || dn.OrderId == orderId))
+                && (dn.OrderId == payload.OrderNumber || dn.OrderId == orderId))
             .FirstOrDefaultAsync(context.CancellationToken);
 
         if (existingDeliveryNote != null)
         {
             _logger.LogWarning(
                 "Delivery note already exists for OrderId={OrderId}, OrderNumber={OrderNumber}, skipping auto-creation. Existing DeliveryNoteId={DeliveryNoteId}",
-                orderEvent.Payload.OrderId, orderEvent.Payload.OrderNumber, existingDeliveryNote.DeliveryNoteId);
+                payload.OrderId, payload.OrderNumber, existingDeliveryNote.DeliveryNoteId);
             return;
         }
 
         try
         {
             var orderDetails = await _orderServiceClient.GetOrderAsync(
-                orderEvent.Payload.OrderNumber,
+                payload.OrderNumber,
                 context.CancellationToken);
             var deliveryItems = orderDetails?.Items.Count > 0
                 ? orderDetails.Items.Select(item => new CreateDeliveryNoteItemRequest
@@ -93,7 +100,7 @@ public class OrderCompletedEventConsumer : IConsumer<OrderCompletedEvent>
                     QuantityDelivered = item.QuantityManufactured,
                     UnitOfMeasure = item.UnitOfMeasure
                 }).ToList()
-                : orderEvent.Payload.Items.Select(item => new CreateDeliveryNoteItemRequest
+                : payload.Items.Select(item => new CreateDeliveryNoteItemRequest
                 {
                     ProductCode = item.ProductCode,
                     ProductName = item.ProductName,
@@ -106,10 +113,10 @@ public class OrderCompletedEventConsumer : IConsumer<OrderCompletedEvent>
             // Auto-create delivery note draft in "Pending" status
             var deliveryNoteRequest = new CreateDeliveryNoteRequest
             {
-                OrderId = orderEvent.Payload.OrderNumber,
+                OrderId = payload.OrderNumber,
                 CustomerId = orderDetails?.CustomerId == Guid.Empty
-                    ? orderEvent.Payload.CustomerId
-                    : orderDetails?.CustomerId ?? orderEvent.Payload.CustomerId,
+                    ? payload.CustomerId
+                    : orderDetails?.CustomerId ?? payload.CustomerId,
                 CustomerName = orderDetails?.CustomerName,
                 DeliveryDate = DateTime.UtcNow.AddDays(1), // Schedule for next day by default
                 ShippingAddressId = orderDetails?.ShippingAddressId,
@@ -148,20 +155,20 @@ public class OrderCompletedEventConsumer : IConsumer<OrderCompletedEvent>
 
             _logger.LogInformation(
                 "Auto-created delivery note and requested PDF generation: DeliveryNoteId={DeliveryNoteId}, OrderNumber={OrderNumber}",
-                result.DeliveryNoteId, orderEvent.Payload.OrderNumber);
+                result.DeliveryNoteId, payload.OrderNumber);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex,
                 "Failed to auto-create delivery note for OrderId={OrderId}. Event will be retried.",
-                orderEvent.Payload.OrderId);
+                payload.OrderId);
             throw; // Re-throw to trigger MassTransit retry policy
         }
     }
 
     private static bool IsRoutedToDeliveryService(OrderCompletedEvent message)
     {
-        return message.ConsumedBy.Any(consumer =>
-            string.Equals(consumer, "DeliveryService", StringComparison.OrdinalIgnoreCase));
+        return message.ConsumedBy?.Any(consumer =>
+            string.Equals(consumer, "DeliveryService", StringComparison.OrdinalIgnoreCase)) == true;
     }
 }

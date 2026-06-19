@@ -5,10 +5,12 @@ using Maliev.DeliveryService.Infrastructure.Consumers;
 using Maliev.DeliveryService.Infrastructure.HttpClients;
 using Maliev.DeliveryService.Infrastructure.Persistence;
 using Maliev.DeliveryService.Infrastructure.Services;
+using Maliev.DeliveryService.Infrastructure.Shipping;
 using Maliev.DeliveryService.Infrastructure.Storage;
 using Maliev.Aspire.ServiceDefaults;
 using Maliev.Aspire.ServiceDefaults.IAM;
 using MassTransit;
+using Microsoft.Extensions.Options;
 
 // Initialize bootstrap logging
 using var loggerFactory = LoggerFactory.Create(logBuilder => logBuilder.AddConsole());
@@ -77,6 +79,12 @@ try
     builder.Services.AddScoped<DeliveryNoteIdGenerator>();
     builder.Services.AddScoped<IDeliveryNoteAuthorizationService, DeliveryNoteAuthorizationService>();
     builder.Services.AddScoped<IDeliveryNoteService, DeliveryNoteService>();
+    builder.Services.Configure<ShippopOptions>(builder.Configuration.GetSection(ShippopOptions.SectionName));
+    builder.Services.AddHttpClient<IShippingGatewayService, ShippopShippingGatewayService>((serviceProvider, client) =>
+    {
+        var options = serviceProvider.GetRequiredService<IOptions<ShippopOptions>>().Value;
+        client.BaseAddress = new Uri(options.DomesticBaseUrl.TrimEnd('/') + "/", UriKind.Absolute);
+    });
 
     // Register Google Cloud Storage
     if (builder.Environment.IsEnvironment("Testing"))

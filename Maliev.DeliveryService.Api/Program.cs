@@ -80,11 +80,21 @@ try
     builder.Services.AddScoped<IDeliveryNoteAuthorizationService, DeliveryNoteAuthorizationService>();
     builder.Services.AddScoped<IDeliveryNoteService, DeliveryNoteService>();
     builder.Services.Configure<ShippopOptions>(builder.Configuration.GetSection(ShippopOptions.SectionName));
-    builder.Services.AddHttpClient<IShippingGatewayService, ShippopShippingGatewayService>((serviceProvider, client) =>
+    builder.Services.Configure<GoShipOptions>(builder.Configuration.GetSection(GoShipOptions.SectionName));
+
+    builder.Services.AddHttpClient<IShippopShippingGatewayService, ShippopShippingGatewayService>((serviceProvider, client) =>
     {
         var options = serviceProvider.GetRequiredService<IOptions<ShippopOptions>>().Value;
         client.BaseAddress = new Uri(options.DomesticBaseUrl.TrimEnd('/') + "/", UriKind.Absolute);
     });
+
+    builder.Services.AddHttpClient<IGoShipShippingGatewayService, GoShipShippingGatewayService>((serviceProvider, client) =>
+    {
+        var options = serviceProvider.GetRequiredService<IOptions<GoShipOptions>>().Value;
+        client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/", UriKind.Absolute);
+    });
+
+    builder.Services.AddScoped<IShippingGatewayService, ShippingGatewayService>();
 
     // Register Google Cloud Storage
     if (builder.Environment.IsEnvironment("Testing"))

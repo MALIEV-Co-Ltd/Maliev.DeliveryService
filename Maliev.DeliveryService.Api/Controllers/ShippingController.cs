@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Maliev.DeliveryService.Api.Controllers;
 
 /// <summary>
-/// Controller for SHIPPOP-backed shipping courier, rate, and tracking operations.
+/// Controller for shipping courier, rate, and tracking operations.
 /// </summary>
 [ApiController]
 [ApiVersion("1")]

@@ -34,4 +34,9 @@ public class ShippingRateOptionResponse
     /// Gets or sets the estimated delivery description.
     /// </summary>
     public string? EstimatedDelivery { get; set; }
+
+    /// <summary>
+    /// Gets or sets the shipping gateway that served this rate option.
+    /// </summary>
+    public string Provider { get; set; } = string.Empty;
 }

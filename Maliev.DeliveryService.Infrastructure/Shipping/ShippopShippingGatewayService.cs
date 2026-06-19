@@ -12,7 +12,7 @@ namespace Maliev.DeliveryService.Infrastructure.Shipping;
 /// <summary>
 /// SHIPPOP implementation of the shipping gateway service.
 /// </summary>
-public class ShippopShippingGatewayService : IShippingGatewayService
+public class ShippopShippingGatewayService : IShippopShippingGatewayService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly HttpClient _httpClient;
@@ -30,7 +30,7 @@ public class ShippopShippingGatewayService : IShippingGatewayService
     /// <inheritdoc />
     public Task<IReadOnlyList<ShippingCourierResponse>> GetCouriersAsync(CancellationToken ct = default)
     {
-        IReadOnlyList<ShippingCourierResponse> couriers =
+        List<ShippingCourierResponse> couriers =
         [
             new() { CourierCode = "SHF", CourierName = "SHIPPOP Fruit" },
             new() { CourierCode = "EMST", CourierName = "Thailand Post EMS" },
@@ -56,7 +56,12 @@ public class ShippopShippingGatewayService : IShippingGatewayService
             new() { CourierCode = "SKT", CourierName = "Skootar", Note = "On-demand courier" },
         ];
 
-        return Task.FromResult(couriers);
+        foreach (var courier in couriers)
+        {
+            courier.Provider = "Shippop";
+        }
+
+        return Task.FromResult<IReadOnlyList<ShippingCourierResponse>>(couriers);
     }
 
     /// <inheritdoc />
@@ -177,7 +182,8 @@ public class ShippopShippingGatewayService : IShippingGatewayService
                 Price = price.Value,
                 Currency = ReadString(node, "currency") ?? "THB",
                 ServiceLevel = ReadString(node, "service_level", "serviceLevel", "service_type", "serviceType"),
-                EstimatedDelivery = ReadString(node, "estimate_time", "estimatedDelivery", "delivery_time")
+                EstimatedDelivery = ReadString(node, "estimate_time", "estimatedDelivery", "delivery_time"),
+                Provider = "Shippop"
             };
         }
     }
@@ -202,7 +208,8 @@ public class ShippopShippingGatewayService : IShippingGatewayService
             CourierName = ReadString(summary, "courier_name", "courierName"),
             Status = ReadString(summary, "status", "current_status", "currentStatus") ?? events.FirstOrDefault()?.Status ?? "unknown",
             Description = ReadString(summary, "description", "detail"),
-            Events = events
+            Events = events,
+            Provider = "Shippop"
         };
     }
 

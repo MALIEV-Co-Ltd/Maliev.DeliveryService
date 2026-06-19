@@ -24,4 +24,9 @@ public class ShippingCourierResponse
     /// Gets or sets the shipping scope, such as domestic or international.
     /// </summary>
     public string Scope { get; set; } = "domestic";
+
+    /// <summary>
+    /// Gets or sets the shipping gateway that served this courier option.
+    /// </summary>
+    public string Provider { get; set; } = string.Empty;
 }

@@ -34,4 +34,9 @@ public class ShippingTrackingResponse
     /// Gets or sets tracking history events.
     /// </summary>
     public List<ShippingTrackingEventResponse> Events { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the shipping gateway that served this tracking status.
+    /// </summary>
+    public string Provider { get; set; } = string.Empty;
 }

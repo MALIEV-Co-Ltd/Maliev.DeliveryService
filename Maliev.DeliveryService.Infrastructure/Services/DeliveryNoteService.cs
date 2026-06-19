@@ -398,6 +398,8 @@ public class DeliveryNoteService : IDeliveryNoteService
 
         await _context.SaveChangesAsync(ct);
 
+        await SyncOrderDeliverySnapshotAsync(deliveryNote, ct);
+
         _logger.LogInformation(
             "Delivery note status updated: {DeliveryNoteId}, Status: {OldStatus} -> {NewStatus}, UpdatedBy: {UpdatedBy}",
             deliveryNoteId, oldStatus, newStatus, updatedBy);
@@ -407,6 +409,40 @@ public class DeliveryNoteService : IDeliveryNoteService
         await _cache.RemoveAsync(cacheKey, ct);
 
         return deliveryNote.ToResponse();
+    }
+
+    private async Task SyncOrderDeliverySnapshotAsync(DeliveryNote deliveryNote, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(deliveryNote.OrderId))
+        {
+            return;
+        }
+
+        var synced = await _orderServiceClient.SyncDeliverySnapshotAsync(
+            deliveryNote.OrderId,
+            ToUtcDateTime(deliveryNote.DeliveryDate),
+            deliveryNote.ActualDeliveryTime.HasValue ? ToUtcDateTime(deliveryNote.ActualDeliveryTime.Value) : null,
+            deliveryNote.DeliveryContactName,
+            deliveryNote.DeliveryContactPhone,
+            deliveryNote.DeliveryContactEmail,
+            ct);
+        if (!synced)
+        {
+            _logger.LogWarning(
+                "Delivery note {DeliveryNoteId} status update completed but OrderService delivery snapshot sync failed for order {OrderId}.",
+                deliveryNote.DeliveryNoteId,
+                deliveryNote.OrderId);
+        }
+    }
+
+    private static DateTime ToUtcDateTime(DateTime value)
+    {
+        return value.Kind switch
+        {
+            DateTimeKind.Utc => value,
+            DateTimeKind.Local => value.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+        };
     }
 
     /// <inheritdoc />

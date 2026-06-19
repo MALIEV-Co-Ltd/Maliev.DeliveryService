@@ -260,6 +260,58 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task UpdateDeliveryStatusAsync_Delivered_SyncsOrderDeliverySnapshot()
+    {
+        var deliveryDate = DateTimeOffset.UtcNow.AddDays(2);
+        var actualDeliveryTime = DateTime.UtcNow.AddMinutes(5);
+        var createRequest = new CreateDeliveryNoteRequest
+        {
+            OrderId = "MO-DELIVERY-SYNC",
+            CustomerId = Guid.NewGuid(),
+            DeliveryDate = deliveryDate.UtcDateTime,
+            DeliveryContactName = "Receiving Dock",
+            DeliveryContactPhone = "+66810000003",
+            DeliveryContactEmail = "receiving@example.test",
+            Items =
+            [
+                new()
+                {
+                    ProductCode = "MAKE-STUDIO-PART",
+                    ProductName = "Make Studio Part",
+                    QuantityOrdered = 1,
+                    QuantityManufactured = 1,
+                    QuantityDelivered = 1,
+                    UnitOfMeasure = "pcs"
+                }
+            ]
+        };
+        var created = await _service.CreateAsync(createRequest, "test-user");
+
+        await _service.UpdateStatusAsync(
+            created.DeliveryNoteId,
+            new UpdateDeliveryStatusRequest { NewStatus = "InTransit" },
+            "test-user");
+        await _service.UpdateStatusAsync(
+            created.DeliveryNoteId,
+            new UpdateDeliveryStatusRequest
+            {
+                NewStatus = "Delivered",
+                ReceivedByName = "Receiving Dock",
+                ActualDeliveryTime = actualDeliveryTime
+            },
+            "test-user");
+
+        var snapshot = Assert.Single(
+            _fakeOrderServiceClient.DeliverySnapshots,
+            item => item.OrderId == "MO-DELIVERY-SYNC" && item.ActualDeliveryDate.HasValue);
+        Assert.Equal(createRequest.DeliveryDate, snapshot.PromisedDeliveryDate);
+        Assert.Equal(actualDeliveryTime, snapshot.ActualDeliveryDate);
+        Assert.Equal("Receiving Dock", snapshot.DeliveryContactName);
+        Assert.Equal("+66810000003", snapshot.DeliveryContactPhone);
+        Assert.Equal("receiving@example.test", snapshot.DeliveryContactEmail);
+    }
+
+    [Fact]
     public async Task UpdateDeliveryStatusAsync_ValidTransition_PersistsTimestampedAudit()
     {
         var createRequest = new CreateDeliveryNoteRequest

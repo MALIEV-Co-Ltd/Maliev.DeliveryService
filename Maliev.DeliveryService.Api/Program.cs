@@ -97,12 +97,9 @@ try
     }
 
     // Register HTTP Clients with Aspire resilience
-    builder.Services.AddHttpClient<IOrderServiceClient, OrderServiceClient>(client =>
-    {
-        // Base address will be resolved by service discovery if "order-service" is used
-        client.BaseAddress = new Uri(builder.Configuration["OrderService:BaseUrl"] ?? "http://order-service");
-    })
-    .AddHttpMessageHandler<Maliev.Aspire.ServiceDefaults.IAM.ServiceAccountAuthenticationHandler>();
+    builder.AddAuthenticatedServiceClient<IOrderServiceClient, OrderServiceClient>(
+        "OrderService",
+        sourceServiceName: "DeliveryService");
 
     // Authorization Infrastructure
     builder.Services.AddPermissionAuthorization();

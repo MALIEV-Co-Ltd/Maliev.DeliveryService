@@ -60,6 +60,7 @@ public class OrderServiceClient : IOrderServiceClient
             {
                 OrderId = orderData.OrderId,
                 OrderNumber = orderData.CustomerPoNumber ?? orderData.OrderId,
+                Version = orderData.Version,
                 CustomerId = Guid.TryParse(orderData.CustomerId, out var cid) ? cid : Guid.Empty,
                 CustomerName = ResolveCustomerName(orderData),
                 BillingAddressId = orderData.BillingAddressId,
@@ -87,6 +88,65 @@ public class OrderServiceClient : IOrderServiceClient
         {
             _logger.LogError(ex, "Unexpected error fetching order {OrderId} from OrderService.", orderId);
             throw;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> SyncDeliverySnapshotAsync(
+        string orderId,
+        DateTime? promisedDeliveryDate,
+        DateTime? actualDeliveryDate,
+        string? deliveryContactName,
+        string? deliveryContactPhone,
+        string? deliveryContactEmail,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var order = await GetOrderAsync(orderId, ct);
+            if (order is null || string.IsNullOrWhiteSpace(order.Version))
+            {
+                _logger.LogWarning(
+                    "Cannot sync delivery snapshot for order {OrderId}: OrderService returned no order/version.",
+                    orderId);
+                return false;
+            }
+
+            var targetOrderId = string.IsNullOrWhiteSpace(order.OrderId) ? orderId : order.OrderId;
+            var response = await _httpClient.PutAsJsonAsync(
+                $"order/v1/orders/{Uri.EscapeDataString(targetOrderId)}",
+                new
+                {
+                    version = order.Version,
+                    promisedDeliveryDate,
+                    actualDeliveryDate,
+                    deliveryContactName,
+                    deliveryContactPhone,
+                    deliveryContactEmail
+                },
+                ct);
+
+            if (response.IsSuccessStatusCode)
+            {
+                return true;
+            }
+
+            var body = await response.Content.ReadAsStringAsync(ct);
+            _logger.LogWarning(
+                "OrderService delivery snapshot sync returned {StatusCode} for order {OrderId}: {Body}",
+                response.StatusCode,
+                targetOrderId,
+                body);
+            return false;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Delivery snapshot sync failed for order {OrderId}.", orderId);
+            return false;
         }
     }
 
@@ -209,6 +269,7 @@ public class OrderServiceClient : IOrderServiceClient
         public string? DeliveryContactName { get; set; }
         public string? DeliveryContactPhone { get; set; }
         public string? DeliveryContactEmail { get; set; }
+        public string? Version { get; set; }
     }
 
     private class OrderServiceItemResponse

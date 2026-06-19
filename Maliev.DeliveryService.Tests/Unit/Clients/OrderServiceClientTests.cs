@@ -45,7 +45,8 @@ public class OrderServiceClientTests
             ShippingCountry = "TH",
             DeliveryContactName = "Natt Customer",
             DeliveryContactPhone = "+66810000002",
-            DeliveryContactEmail = "shipping@example.test"
+            DeliveryContactEmail = "shipping@example.test",
+            Version = "20260619"
         };
 
         var httpClient = CreateHttpClient(HttpStatusCode.OK, responseData);
@@ -70,8 +71,65 @@ public class OrderServiceClientTests
         Assert.Equal("Natt Customer", result.DeliveryContactName);
         Assert.Equal("+66810000002", result.DeliveryContactPhone);
         Assert.Equal("shipping@example.test", result.DeliveryContactEmail);
+        Assert.Equal("20260619", result.Version);
         Assert.Single(result.Items);
         Assert.Equal("Cat", result.Items[0].ProductCode);
+    }
+
+    [Fact]
+    public async Task SyncDeliverySnapshotAsync_UsesCurrentOrderVersionAndPutsDeliveryDates()
+    {
+        var orderNumber = "MO-20260619-0001";
+        var orderId = "8f4af6ad-25ab-47c7-bde3-b2c661ce43fa";
+        var promised = new DateTime(2026, 6, 22, 0, 0, 0, DateTimeKind.Utc);
+        var actual = new DateTime(2026, 6, 23, 8, 30, 0, DateTimeKind.Utc);
+        var requests = new List<(HttpMethod Method, string Path, string Body)>();
+        var handler = new MultiResponseHttpMessageHandler(request =>
+        {
+            var body = request.Content is null
+                ? string.Empty
+                : request.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            requests.Add((request.Method, request.RequestUri?.AbsolutePath ?? string.Empty, body));
+
+            if (request.Method == HttpMethod.Get &&
+                request.RequestUri?.AbsolutePath.EndsWith($"/order/v1/orders/{orderNumber}/items", StringComparison.Ordinal) == true)
+            {
+                return (HttpStatusCode.OK, Array.Empty<object>());
+            }
+
+            if (request.Method == HttpMethod.Get)
+            {
+                return (HttpStatusCode.OK, new
+                {
+                    orderId,
+                    customerId = Guid.NewGuid().ToString("D"),
+                    version = "20260620",
+                    customerPoNumber = orderNumber
+                });
+            }
+
+            return (HttpStatusCode.OK, new { orderId });
+        });
+        var client = new OrderServiceClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") }, _mockLogger.Object);
+
+        var synced = await client.SyncDeliverySnapshotAsync(
+            orderNumber,
+            promised,
+            actual,
+            "Receiving Dock",
+            "+66810000003",
+            "receiving@example.test");
+
+        Assert.True(synced);
+        var put = Assert.Single(requests, request => request.Method == HttpMethod.Put);
+        Assert.Equal($"/order/v1/orders/{orderId}", put.Path);
+        using var payload = JsonDocument.Parse(put.Body);
+        Assert.Equal("20260620", payload.RootElement.GetProperty("version").GetString());
+        Assert.Equal("Receiving Dock", payload.RootElement.GetProperty("deliveryContactName").GetString());
+        Assert.Equal("+66810000003", payload.RootElement.GetProperty("deliveryContactPhone").GetString());
+        Assert.Equal("receiving@example.test", payload.RootElement.GetProperty("deliveryContactEmail").GetString());
+        Assert.True(payload.RootElement.TryGetProperty("promisedDeliveryDate", out _));
+        Assert.True(payload.RootElement.TryGetProperty("actualDeliveryDate", out _));
     }
 
     [Fact]

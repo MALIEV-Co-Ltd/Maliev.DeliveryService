@@ -16,6 +16,11 @@ public class OrderDetailsDto
     public string OrderNumber { get; set; } = null!;
 
     /// <summary>
+    /// Gets or sets the order concurrency version returned by OrderService.
+    /// </summary>
+    public string? Version { get; set; }
+
+    /// <summary>
     /// Gets or sets the customer ID.
     /// </summary>
     public Guid CustomerId { get; set; }

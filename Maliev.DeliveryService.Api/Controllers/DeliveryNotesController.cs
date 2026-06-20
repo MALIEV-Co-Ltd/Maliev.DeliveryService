@@ -326,6 +326,35 @@ public class DeliveryNotesController : ControllerBase
     }
 
     /// <summary>
+    /// Downloads a file attachment for a delivery note.
+    /// </summary>
+    [HttpGet("{id}/files/{fileId:guid}/download")]
+    [RequirePermission(DeliveryPermissions.DeliveryNoteFiles.Read)]
+    [ProducesResponseType(typeof(FileResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DownloadFile(
+        [FromRoute] string id,
+        [FromRoute] Guid fileId,
+        CancellationToken ct)
+    {
+        try
+        {
+            var principalId = User.GetPrincipalId();
+            var file = await _deliveryNoteService.DownloadFileAsync(id, fileId, principalId, ct);
+            return File(file.Content, file.ContentType, file.OriginalFileName);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("not found"))
+        {
+            return NotFound();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>
     /// Update delivery note carrier, tracking, and contact information
     /// </summary>
     [HttpPut("{id}")]

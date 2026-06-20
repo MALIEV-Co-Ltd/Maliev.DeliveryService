@@ -212,6 +212,29 @@ public class DeliveryNotesControllerTests
     }
 
     [Fact]
+    public async Task DownloadFile_Found_ReturnsFileContent()
+    {
+        var fileId = Guid.NewGuid();
+        var content = new byte[] { 137, 80, 78, 71, 13, 10, 26, 10, 77, 83 };
+        _mockService
+            .Setup(x => x.DownloadFileAsync("DN-1", fileId, "test-user", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DeliveryNoteFileContentResponse
+            {
+                FileId = fileId,
+                OriginalFileName = "proof.png",
+                ContentType = "image/png",
+                Content = content
+            });
+
+        var result = await _controller.DownloadFile("DN-1", fileId, CancellationToken.None);
+
+        var fileResult = Assert.IsType<FileContentResult>(result);
+        Assert.Equal("image/png", fileResult.ContentType);
+        Assert.Equal("proof.png", fileResult.FileDownloadName);
+        Assert.Equal(content, fileResult.FileContents);
+    }
+
+    [Fact]
     public async Task UpdateDeliveryNote_ValidRequest_ReturnsOk()
     {
         // Arrange

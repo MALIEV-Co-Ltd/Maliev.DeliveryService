@@ -36,6 +36,14 @@ public class InMemoryFileStorageService : IFileStorageService
     }
 
     /// <inheritdoc />
+    public Task<byte[]> DownloadAsync(string fileName, CancellationToken ct = default)
+    {
+        return _files.TryGetValue(fileName, out var bytes)
+            ? Task.FromResult(bytes)
+            : throw new FileNotFoundException($"File not found in delivery storage: {fileName}", fileName);
+    }
+
+    /// <inheritdoc />
     public Task DeleteAsync(string fileName, CancellationToken ct = default)
     {
         _files.TryRemove(fileName, out _);

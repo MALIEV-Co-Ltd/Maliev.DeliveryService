@@ -113,6 +113,26 @@ public class GoogleCloudStorageService : IFileStorageService
     }
 
     /// <inheritdoc />
+    public async Task<byte[]> DownloadAsync(string fileName, CancellationToken ct = default)
+    {
+        try
+        {
+            var objectName = fileName.StartsWith("gs://")
+                ? fileName.Substring($"gs://{_bucketName}/".Length)
+                : fileName;
+
+            using var stream = new MemoryStream();
+            await _storageClient.DownloadObjectAsync(_bucketName, objectName, stream, cancellationToken: ct);
+            return stream.ToArray();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to download file {FileName} from GCS", fileName);
+            throw;
+        }
+    }
+
+    /// <inheritdoc />
     public async Task DeleteAsync(string fileName, CancellationToken ct = default)
     {
         try

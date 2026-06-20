@@ -44,6 +44,11 @@ public interface IDeliveryNoteService
     Task<List<DeliveryNoteFileResponse>> GetFilesAsync(string deliveryNoteId, CancellationToken ct = default);
 
     /// <summary>
+    /// Downloads a file attached to a delivery note.
+    /// </summary>
+    Task<DeliveryNoteFileContentResponse> DownloadFileAsync(string deliveryNoteId, Guid fileId, string principalId, CancellationToken ct = default);
+
+    /// <summary>
     /// Updates an existing delivery note.
     /// </summary>
     Task<DeliveryNoteResponse> UpdateAsync(string deliveryNoteId, UpdateDeliveryNoteRequest request, string updatedBy, CancellationToken ct = default);

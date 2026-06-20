@@ -870,6 +870,22 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task DownloadFileAsync_WithUploadedFile_ReturnsOriginalBytes()
+    {
+        var created = await CreateTestDeliveryNote();
+        var bytes = new byte[] { 137, 80, 78, 71, 13, 10, 26, 10, 77, 83 };
+        var fileData = new TestFileData(new MemoryStream(bytes), "proof.png", bytes.Length, "image/png");
+        var uploaded = await _service.AddFileAsync(created.DeliveryNoteId, fileData, FileType.Signature, "Proof", "user");
+
+        var downloaded = await _service.DownloadFileAsync(created.DeliveryNoteId, uploaded.FileId, "user");
+
+        Assert.Equal(uploaded.FileId, downloaded.FileId);
+        Assert.Equal("proof.png", downloaded.OriginalFileName);
+        Assert.Equal("image/png", downloaded.ContentType);
+        Assert.Equal(bytes, downloaded.Content);
+    }
+
+    [Fact]
     public async Task GetFilesAsync_Empty_ReturnsEmptyList()
     {
         // Arrange

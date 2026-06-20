@@ -23,6 +23,11 @@ public interface IFileStorageService
         CancellationToken ct = default);
 
     /// <summary>
+    /// Downloads a file from storage.
+    /// </summary>
+    Task<byte[]> DownloadAsync(string fileName, CancellationToken ct = default);
+
+    /// <summary>
     /// Delete a file from Google Cloud Storage
     /// </summary>
     Task DeleteAsync(string fileName, CancellationToken ct = default);

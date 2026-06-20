@@ -55,3 +55,29 @@ public class DeliveryNoteFileResponse
     /// </summary>
     public uint Version { get; set; }
 }
+
+/// <summary>
+/// Downloaded delivery note file content.
+/// </summary>
+public class DeliveryNoteFileContentResponse
+{
+    /// <summary>
+    /// Gets or sets the file identifier.
+    /// </summary>
+    public Guid FileId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the original file name.
+    /// </summary>
+    public string OriginalFileName { get; set; } = null!;
+
+    /// <summary>
+    /// Gets or sets the MIME content type.
+    /// </summary>
+    public string ContentType { get; set; } = null!;
+
+    /// <summary>
+    /// Gets or sets the file content bytes.
+    /// </summary>
+    public byte[] Content { get; set; } = [];
+}

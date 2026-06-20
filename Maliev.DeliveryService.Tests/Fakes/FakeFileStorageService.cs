@@ -35,6 +35,13 @@ public class FakeFileStorageService : IFileStorageService
         return Task.FromResult(signedUrl);
     }
 
+    public Task<byte[]> DownloadAsync(string fileName, CancellationToken ct = default)
+    {
+        return _files.TryGetValue(fileName, out var data)
+            ? Task.FromResult(data)
+            : throw new FileNotFoundException($"Fake file not found: {fileName}", fileName);
+    }
+
     public Task DeleteAsync(string fileName, CancellationToken ct = default)
     {
         _files.Remove(fileName);

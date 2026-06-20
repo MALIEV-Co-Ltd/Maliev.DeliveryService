@@ -528,6 +528,41 @@ public class DeliveryNoteService : IDeliveryNoteService
     }
 
     /// <inheritdoc />
+    public async Task<DeliveryNoteFileContentResponse> DownloadFileAsync(
+        string deliveryNoteId,
+        Guid fileId,
+        string principalId,
+        CancellationToken ct = default)
+    {
+        var deliveryNote = await _context.DeliveryNotes
+            .FirstOrDefaultAsync(dn => dn.DeliveryNoteId == deliveryNoteId, ct);
+
+        if (deliveryNote == null)
+        {
+            throw new InvalidOperationException($"Delivery note {deliveryNoteId} not found");
+        }
+
+        await EnsureCanAccessCustomerAsync(principalId, deliveryNote.CustomerId, ct);
+
+        var file = await _context.DeliveryNoteFiles
+            .FirstOrDefaultAsync(f => f.DeliveryNoteId == deliveryNoteId && f.Id == fileId && !f.IsDeleted, ct);
+
+        if (file == null)
+        {
+            throw new InvalidOperationException($"File {fileId} not found for delivery note {deliveryNoteId}");
+        }
+
+        var content = await _fileStorageService.DownloadAsync(file.StorageUrl, ct);
+        return new DeliveryNoteFileContentResponse
+        {
+            FileId = file.Id,
+            OriginalFileName = file.FileName,
+            ContentType = file.ContentType,
+            Content = content
+        };
+    }
+
+    /// <inheritdoc />
     public async Task<DeliveryNoteResponse> UpdateAsync(
         string deliveryNoteId,
         UpdateDeliveryNoteRequest request,

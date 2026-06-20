@@ -26,6 +26,7 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
     private readonly FakePublishEndpoint _fakePublishEndpoint;
     private readonly FakeOrderServiceClient _fakeOrderServiceClient;
     private readonly FakeFileStorageService _fakeFileStorageService;
+    private readonly FakeDeliveryPdfRequestPublisher _fakeDeliveryPdfRequestPublisher;
     private readonly TestHttpClientFactory _httpClientFactory;
     private readonly IDistributedCache _cache;
 
@@ -36,6 +37,7 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
         _fakePublishEndpoint = new FakePublishEndpoint();
         _fakeOrderServiceClient = new FakeOrderServiceClient();
         _fakeFileStorageService = new FakeFileStorageService();
+        _fakeDeliveryPdfRequestPublisher = new FakeDeliveryPdfRequestPublisher();
         _httpClientFactory = new TestHttpClientFactory();
 
         // Use in-memory cache
@@ -54,6 +56,7 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
             _cache,
             authService,
             _fakeFileStorageService,
+            _fakeDeliveryPdfRequestPublisher,
             _httpClientFactory,
             logger);
     }
@@ -932,8 +935,7 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
 
         await _service.RequestPdfGenerationAsync(created.DeliveryNoteId, "user");
 
-        Assert.True(_fakePublishEndpoint.WasPublished<DeliveryNotePdfRequestedEvent>());
-        var published = _fakePublishEndpoint.GetPublishedMessages<DeliveryNotePdfRequestedEvent>().Single();
+        var published = Assert.Single(_fakeDeliveryPdfRequestPublisher.Published);
         Assert.Equal(created.DeliveryNoteId, published.Payload.DeliveryNoteId);
         Assert.Equal("user", published.Payload.RequestedBy);
         Assert.Contains("PdfService", published.ConsumedBy, StringComparer.OrdinalIgnoreCase);
@@ -1488,6 +1490,7 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
             _cache,
             authorizationService,
             _fakeFileStorageService,
+            _fakeDeliveryPdfRequestPublisher,
             _httpClientFactory,
             Microsoft.Extensions.Logging.Abstractions.NullLogger<DeliveryNoteService>.Instance);
     }

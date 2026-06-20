@@ -24,6 +24,7 @@ public class DeliveryNoteService : IDeliveryNoteService
     private readonly IDistributedCache _cache;
     private readonly IDeliveryNoteAuthorizationService _authorizationService;
     private readonly IFileStorageService _fileStorageService;
+    private readonly IDeliveryPdfRequestPublisher _deliveryPdfRequestPublisher;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<DeliveryNoteService> _logger;
 
@@ -49,6 +50,7 @@ public class DeliveryNoteService : IDeliveryNoteService
         IDistributedCache cache,
         IDeliveryNoteAuthorizationService authorizationService,
         IFileStorageService fileStorageService,
+        IDeliveryPdfRequestPublisher deliveryPdfRequestPublisher,
         IHttpClientFactory httpClientFactory,
         ILogger<DeliveryNoteService> logger)
     {
@@ -59,6 +61,7 @@ public class DeliveryNoteService : IDeliveryNoteService
         _cache = cache;
         _authorizationService = authorizationService;
         _fileStorageService = fileStorageService;
+        _deliveryPdfRequestPublisher = deliveryPdfRequestPublisher;
         _httpClientFactory = httpClientFactory;
         _logger = logger;
     }
@@ -591,7 +594,7 @@ public class DeliveryNoteService : IDeliveryNoteService
             throw new InvalidOperationException($"Delivery note {deliveryNoteId} not found");
         }
 
-        await PublishEventAsync(new DeliveryNotePdfRequestedEvent(
+        await _deliveryPdfRequestPublisher.PublishAsync(new DeliveryNotePdfRequestedEvent(
             Guid.NewGuid(),
             nameof(DeliveryNotePdfRequestedEvent),
             MessageType.Event,
@@ -607,8 +610,6 @@ public class DeliveryNoteService : IDeliveryNoteService
                 requestedBy,
                 DateTimeOffset.UtcNow
             )), ct);
-
-        await _context.SaveChangesAsync(ct);
     }
 
     /// <inheritdoc />

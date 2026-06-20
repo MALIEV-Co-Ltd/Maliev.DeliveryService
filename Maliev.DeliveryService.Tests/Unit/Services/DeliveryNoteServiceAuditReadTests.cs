@@ -116,6 +116,7 @@ public sealed class DeliveryNoteServiceAuditReadTests : IDisposable
             cache,
             authorizationService,
             new FakeFileStorageService(),
+            new FakeDeliveryPdfRequestPublisher(),
             new TestHttpClientFactory(),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<DeliveryNoteService>.Instance);
     }

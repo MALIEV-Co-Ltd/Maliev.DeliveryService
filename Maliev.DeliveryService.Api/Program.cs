@@ -78,6 +78,7 @@ try
     // Register application services
     builder.Services.AddScoped<DeliveryNoteIdGenerator>();
     builder.Services.AddScoped<IDeliveryNoteAuthorizationService, DeliveryNoteAuthorizationService>();
+    builder.Services.AddScoped<IDeliveryPdfRequestPublisher, MassTransitDeliveryPdfRequestPublisher>();
     builder.Services.AddScoped<IDeliveryNoteService, DeliveryNoteService>();
     builder.Services.Configure<ShippopOptions>(builder.Configuration.GetSection(ShippopOptions.SectionName));
     builder.Services.Configure<GoShipOptions>(builder.Configuration.GetSection(GoShipOptions.SectionName));

@@ -51,6 +51,24 @@ public class DeliveryNoteAuthorizationServiceTests
     }
 
     [Fact]
+    public async Task CanAccessCustomerAsync_ServiceAccountPrincipal_ReturnsTrueWithoutIamCall()
+    {
+        // Arrange
+        var customerId = Guid.NewGuid();
+
+        // Act
+        var result = await _service.CanAccessCustomerAsync("system:service:pdf", customerId);
+
+        // Assert
+        Assert.True(result);
+        _mockIamClient.Verify(x => x.CheckPermissionAsync(
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task CanAccessCustomerAsync_ReturnsFalse()
     {
         // Arrange
@@ -88,6 +106,21 @@ public class DeliveryNoteAuthorizationServiceTests
     {
         // Act
         var result = await _service.HasUnrestrictedAccessAsync("system-auto");
+
+        // Assert
+        Assert.True(result);
+        _mockIamClient.Verify(x => x.CheckPermissionAsync(
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HasUnrestrictedAccessAsync_ServiceAccountPrincipal_ReturnsTrueWithoutIamCall()
+    {
+        // Act
+        var result = await _service.HasUnrestrictedAccessAsync("system:service:pdf");
 
         // Assert
         Assert.True(result);

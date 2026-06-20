@@ -23,7 +23,7 @@ public class DeliveryNoteAuthorizationService : IDeliveryNoteAuthorizationServic
     /// <inheritdoc />
     public async Task<bool> CanAccessCustomerAsync(string principalId, Guid customerId, CancellationToken ct = default)
     {
-        if (IsSystemAutoPrincipal(principalId))
+        if (IsSystemPrincipal(principalId))
         {
             return true;
         }
@@ -34,7 +34,7 @@ public class DeliveryNoteAuthorizationService : IDeliveryNoteAuthorizationServic
     /// <inheritdoc />
     public async Task<bool> HasUnrestrictedAccessAsync(string principalId, CancellationToken ct = default)
     {
-        if (IsSystemAutoPrincipal(principalId))
+        if (IsSystemPrincipal(principalId))
         {
             return true;
         }
@@ -49,7 +49,7 @@ public class DeliveryNoteAuthorizationService : IDeliveryNoteAuthorizationServic
     /// <inheritdoc />
     public async Task<List<Guid>> GetAuthorizedCustomerIdsAsync(string principalId, CancellationToken ct = default)
     {
-        if (IsSystemAutoPrincipal(principalId))
+        if (IsSystemPrincipal(principalId))
         {
             return [];
         }
@@ -67,6 +67,7 @@ public class DeliveryNoteAuthorizationService : IDeliveryNoteAuthorizationServic
         return result;
     }
 
-    private static bool IsSystemAutoPrincipal(string principalId) =>
-        string.Equals(principalId, SystemAutoPrincipal, StringComparison.Ordinal);
+    private static bool IsSystemPrincipal(string principalId) =>
+        string.Equals(principalId, SystemAutoPrincipal, StringComparison.Ordinal) ||
+        principalId.StartsWith("system:service:", StringComparison.OrdinalIgnoreCase);
 }

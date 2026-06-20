@@ -1206,54 +1206,161 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task CreateDeliveryNoteAsync_WithCumulativeQuantityValidation_Success()
+    public async Task CreateAsync_WithSecondPartialDeliveryWithinOrderedQuantity_PersistsDeliveryQuantity()
     {
-        // Arrange - Create first partial delivery
-        var orderId = "ORD-CUMULATIVE-TEST";
+        var orderId = "ORD-PARTIAL-VALID";
+        var customerId = Guid.NewGuid();
         var firstRequest = new CreateDeliveryNoteRequest
         {
             OrderId = orderId,
-            CustomerId = Guid.NewGuid(),
+            CustomerId = customerId,
             DeliveryDate = DateTime.UtcNow.AddDays(1),
             Items = new List<CreateDeliveryNoteItemRequest>
             {
                 new()
                 {
+                    PurchaseOrderItemId = 1001,
                     ProductCode = "PROD-CUM",
                     ProductName = "Test Product",
-                    QuantityOrdered = 100,
-                    QuantityManufactured = 100,
-                    QuantityDelivered = 50, // First delivery: 50
+                    QuantityOrdered = 12,
+                    QuantityManufactured = 12,
+                    QuantityDelivered = 5,
                     UnitOfMeasure = "pcs"
                 }
             }
         };
         await _service.CreateAsync(firstRequest, "test-user");
 
-        // Try to create second delivery that exceeds total
         var secondRequest = new CreateDeliveryNoteRequest
         {
             OrderId = orderId,
-            CustomerId = Guid.NewGuid(),
+            CustomerId = customerId,
             DeliveryDate = DateTime.UtcNow.AddDays(1),
             Items = new List<CreateDeliveryNoteItemRequest>
             {
                 new()
                 {
+                    PurchaseOrderItemId = 1001,
                     ProductCode = "PROD-CUM",
                     ProductName = "Test Product",
-                    QuantityOrdered = 100,
-                    QuantityManufactured = 100,
-                    QuantityDelivered = 60, // Second delivery: 60, total = 110 > 100!
+                    QuantityOrdered = 12,
+                    QuantityManufactured = 12,
+                    QuantityDelivered = 7,
                     UnitOfMeasure = "pcs"
                 }
             }
         };
 
-        // Act & Assert
+        var secondDelivery = await _service.CreateAsync(secondRequest, "test-user");
+
+        Assert.Equal("Pending", secondDelivery.Status);
+        var deliveredItem = Assert.Single(secondDelivery.Items);
+        Assert.Equal(7, deliveredItem.QuantityDelivered);
+        Assert.Equal(12, deliveredItem.QuantityOrdered);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithCumulativeQuantityOverOrderedQuantity_ThrowsArgumentException()
+    {
+        var orderId = "ORD-CUMULATIVE-OVER";
+        var customerId = Guid.NewGuid();
+        var firstRequest = new CreateDeliveryNoteRequest
+        {
+            OrderId = orderId,
+            CustomerId = customerId,
+            DeliveryDate = DateTime.UtcNow.AddDays(1),
+            Items = new List<CreateDeliveryNoteItemRequest>
+            {
+                new()
+                {
+                    PurchaseOrderItemId = 1001,
+                    ProductCode = "PROD-CUM",
+                    ProductName = "Test Product",
+                    QuantityOrdered = 12,
+                    QuantityManufactured = 12,
+                    QuantityDelivered = 7,
+                    UnitOfMeasure = "pcs"
+                }
+            }
+        };
+        await _service.CreateAsync(firstRequest, "test-user");
+
+        var secondRequest = new CreateDeliveryNoteRequest
+        {
+            OrderId = orderId,
+            CustomerId = customerId,
+            DeliveryDate = DateTime.UtcNow.AddDays(1),
+            Items = new List<CreateDeliveryNoteItemRequest>
+            {
+                new()
+                {
+                    PurchaseOrderItemId = 1001,
+                    ProductCode = "PROD-CUM",
+                    ProductName = "Test Product",
+                    QuantityOrdered = 12,
+                    QuantityManufactured = 12,
+                    QuantityDelivered = 6,
+                    UnitOfMeasure = "pcs"
+                }
+            }
+        };
+
         var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
             _service.CreateAsync(secondRequest, "test-user"));
         Assert.Contains("exceeds ordered quantity", exception.Message);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithSameProductCodeOnDifferentPurchaseOrderItems_AllowsSeparateLineQuantities()
+    {
+        var orderId = "ORD-SAME-SKU-SEPARATE-LINES";
+        var customerId = Guid.NewGuid();
+        var firstLineRequest = new CreateDeliveryNoteRequest
+        {
+            OrderId = orderId,
+            CustomerId = customerId,
+            DeliveryDate = DateTime.UtcNow.AddDays(1),
+            Items = new List<CreateDeliveryNoteItemRequest>
+            {
+                new()
+                {
+                    PurchaseOrderItemId = 2001,
+                    ProductCode = "PROD-SAME-SKU",
+                    ProductName = "Shared SKU",
+                    QuantityOrdered = 10,
+                    QuantityManufactured = 10,
+                    QuantityDelivered = 10,
+                    UnitOfMeasure = "pcs"
+                }
+            }
+        };
+        await _service.CreateAsync(firstLineRequest, "test-user");
+
+        var secondLineRequest = new CreateDeliveryNoteRequest
+        {
+            OrderId = orderId,
+            CustomerId = customerId,
+            DeliveryDate = DateTime.UtcNow.AddDays(1),
+            Items = new List<CreateDeliveryNoteItemRequest>
+            {
+                new()
+                {
+                    PurchaseOrderItemId = 2002,
+                    ProductCode = "PROD-SAME-SKU",
+                    ProductName = "Shared SKU",
+                    QuantityOrdered = 10,
+                    QuantityManufactured = 10,
+                    QuantityDelivered = 10,
+                    UnitOfMeasure = "pcs"
+                }
+            }
+        };
+
+        var secondLineDelivery = await _service.CreateAsync(secondLineRequest, "test-user");
+
+        var deliveredItem = Assert.Single(secondLineDelivery.Items);
+        Assert.Equal(2002, deliveredItem.PurchaseOrderItemId);
+        Assert.Equal(10, deliveredItem.QuantityDelivered);
     }
 
     [Fact]

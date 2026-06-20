@@ -69,9 +69,7 @@ public class DeliveryNoteConfiguration : IEntityTypeConfiguration<DeliveryNote>
 
         // Indices
         builder.HasIndex(dn => dn.OrderId)
-            .IsUnique()
-            .HasFilter("order_id IS NOT NULL AND is_deleted = false")
-            .HasDatabaseName("ux_delivery_notes_active_order_id");
+            .HasDatabaseName("idx_delivery_notes_order_id");
         builder.HasIndex(dn => dn.CustomerId).HasDatabaseName("idx_delivery_notes_customer_id");
         builder.HasIndex(dn => dn.DeliveryDate).HasDatabaseName("idx_delivery_notes_delivery_date");
         builder.HasIndex(dn => dn.Status).HasDatabaseName("idx_delivery_notes_status");

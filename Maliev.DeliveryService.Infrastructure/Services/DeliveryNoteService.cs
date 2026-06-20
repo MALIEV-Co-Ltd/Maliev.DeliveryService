@@ -823,7 +823,7 @@ public class DeliveryNoteService : IDeliveryNoteService
             .Where(dn => dn.OrderId == request.OrderId && !dn.IsDeleted)
             .ToListAsync(ct);
 
-        // Calculate cumulative delivered quantities per product
+        // Calculate cumulative delivered quantities per order line when available, otherwise per product.
         foreach (var requestItem in request.Items)
         {
             if (string.IsNullOrEmpty(requestItem.ProductCode))
@@ -831,7 +831,7 @@ public class DeliveryNoteService : IDeliveryNoteService
 
             var totalDelivered = existingDeliveries
                 .SelectMany(dn => dn.Items)
-                .Where(item => item.ProductCode == requestItem.ProductCode)
+                .Where(item => MatchesDeliveryLine(item, requestItem))
                 .Sum(item => item.QuantityDelivered);
 
             var totalWithCurrent = totalDelivered + requestItem.QuantityDelivered;
@@ -848,6 +848,16 @@ public class DeliveryNoteService : IDeliveryNoteService
                 "Cumulative quantity check passed for {ProductCode}: Total={Total}, Current={Current}, Ordered={Ordered}",
                 requestItem.ProductCode, totalWithCurrent, requestItem.QuantityDelivered, requestItem.QuantityOrdered);
         }
+    }
+
+    private static bool MatchesDeliveryLine(DeliveryNoteItem existingItem, CreateDeliveryNoteItemRequest requestItem)
+    {
+        if (requestItem.PurchaseOrderItemId.HasValue)
+        {
+            return existingItem.PurchaseOrderItemId == requestItem.PurchaseOrderItemId;
+        }
+
+        return existingItem.ProductCode == requestItem.ProductCode;
     }
 
     private async Task PublishEventAsync<T>(T eventMessage, CancellationToken ct) where T : class

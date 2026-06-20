@@ -25,6 +25,7 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
     private readonly FakePublishEndpoint _fakePublishEndpoint;
     private readonly FakeOrderServiceClient _fakeOrderServiceClient;
     private readonly FakeFileStorageService _fakeFileStorageService;
+    private readonly TestHttpClientFactory _httpClientFactory;
     private readonly IDistributedCache _cache;
 
     public DeliveryNoteServiceTests(PostgreSqlTestFixture fixture)
@@ -34,6 +35,7 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
         _fakePublishEndpoint = new FakePublishEndpoint();
         _fakeOrderServiceClient = new FakeOrderServiceClient();
         _fakeFileStorageService = new FakeFileStorageService();
+        _httpClientFactory = new TestHttpClientFactory();
 
         // Use in-memory cache
         _cache = new MemoryDistributedCache(
@@ -51,6 +53,7 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
             _cache,
             authService,
             _fakeFileStorageService,
+            _httpClientFactory,
             logger);
     }
 
@@ -886,6 +889,42 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task DownloadFileAsync_WithGeneratedPdfUrl_ReturnsSignedUrlBytes()
+    {
+        var created = await CreateTestDeliveryNote();
+        var pdfBytes = "%PDF-1.7 generated delivery note"u8.ToArray();
+        var pdfUrl = "https://upload.test/upload/v1/mock-storage/pdf-token";
+        _httpClientFactory.RespondWith(pdfUrl, "application/pdf", pdfBytes);
+        var fileId = Guid.NewGuid();
+
+        _context.DeliveryNoteFiles.Add(new DeliveryNoteFile
+        {
+            Id = fileId,
+            DeliveryNoteId = created.DeliveryNoteId,
+            FileType = FileType.DeliveryNotePdf,
+            FileName = "delivery-note.pdf",
+            StorageUrl = pdfUrl,
+            ContentType = "application/pdf",
+            FileSize = pdfBytes.Length,
+            Description = "Generated delivery note PDF",
+            UploadedAt = DateTime.UtcNow,
+            UploadedBy = "PdfService"
+        });
+        await _context.SaveChangesAsync();
+
+        var downloaded = await _service.DownloadFileAsync(created.DeliveryNoteId, fileId, "user");
+
+        Assert.Equal(fileId, downloaded.FileId);
+        Assert.Equal("delivery-note.pdf", downloaded.OriginalFileName);
+        Assert.Equal("application/pdf", downloaded.ContentType);
+        Assert.Equal(pdfBytes, downloaded.Content);
+        Assert.Equal((byte)'%', downloaded.Content[0]);
+        Assert.Equal((byte)'P', downloaded.Content[1]);
+        Assert.Equal((byte)'D', downloaded.Content[2]);
+        Assert.Equal((byte)'F', downloaded.Content[3]);
+    }
+
+    [Fact]
     public async Task GetFilesAsync_Empty_ReturnsEmptyList()
     {
         // Arrange
@@ -1434,6 +1473,7 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
             _cache,
             authorizationService,
             _fakeFileStorageService,
+            _httpClientFactory,
             Microsoft.Extensions.Logging.Abstractions.NullLogger<DeliveryNoteService>.Instance);
     }
 
@@ -1534,6 +1574,57 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
         public Task<List<Guid>> GetAuthorizedCustomerIdsAsync(string principalId, CancellationToken ct = default)
         {
             return Task.FromResult(_authorizedCustomerIds.ToList());
+        }
+    }
+
+    private sealed class TestHttpClientFactory : IHttpClientFactory
+    {
+        private readonly Dictionary<string, HttpResponseMessage> _responses = new(StringComparer.OrdinalIgnoreCase);
+
+        public void RespondWith(string url, string contentType, byte[] bytes)
+        {
+            var response = new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(bytes)
+            };
+            response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
+            _responses[url] = response;
+        }
+
+        public HttpClient CreateClient(string name)
+        {
+            return new HttpClient(new TestHttpMessageHandler(_responses));
+        }
+    }
+
+    private sealed class TestHttpMessageHandler : HttpMessageHandler
+    {
+        private readonly IReadOnlyDictionary<string, HttpResponseMessage> _responses;
+
+        public TestHttpMessageHandler(IReadOnlyDictionary<string, HttpResponseMessage> responses)
+        {
+            _responses = responses;
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var key = request.RequestUri?.ToString() ?? string.Empty;
+            if (_responses.TryGetValue(key, out var response))
+            {
+                var content = response.Content.ReadAsByteArrayAsync(cancellationToken).GetAwaiter().GetResult();
+                var clonedContent = new ByteArrayContent(content);
+                if (response.Content.Headers.ContentType is not null)
+                {
+                    clonedContent.Headers.ContentType = response.Content.Headers.ContentType;
+                }
+
+                return Task.FromResult(new HttpResponseMessage(response.StatusCode)
+                {
+                    Content = clonedContent
+                });
+            }
+
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.NotFound));
         }
     }
 }

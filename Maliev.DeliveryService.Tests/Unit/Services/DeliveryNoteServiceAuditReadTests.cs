@@ -116,6 +116,7 @@ public sealed class DeliveryNoteServiceAuditReadTests : IDisposable
             cache,
             authorizationService,
             new FakeFileStorageService(),
+            new TestHttpClientFactory(),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<DeliveryNoteService>.Instance);
     }
 
@@ -134,6 +135,14 @@ public sealed class DeliveryNoteServiceAuditReadTests : IDisposable
         public Task<List<Guid>> GetAuthorizedCustomerIdsAsync(string principalId, CancellationToken ct = default)
         {
             return Task.FromResult(new List<Guid>());
+        }
+    }
+
+    private sealed class TestHttpClientFactory : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name)
+        {
+            return new HttpClient();
         }
     }
 }

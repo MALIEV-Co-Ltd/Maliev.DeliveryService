@@ -24,6 +24,7 @@ public class DeliveryNoteService : IDeliveryNoteService
     private readonly IDistributedCache _cache;
     private readonly IDeliveryNoteAuthorizationService _authorizationService;
     private readonly IFileStorageService _fileStorageService;
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<DeliveryNoteService> _logger;
 
     // File validation constants
@@ -48,6 +49,7 @@ public class DeliveryNoteService : IDeliveryNoteService
         IDistributedCache cache,
         IDeliveryNoteAuthorizationService authorizationService,
         IFileStorageService fileStorageService,
+        IHttpClientFactory httpClientFactory,
         ILogger<DeliveryNoteService> logger)
     {
         _context = context;
@@ -57,6 +59,7 @@ public class DeliveryNoteService : IDeliveryNoteService
         _cache = cache;
         _authorizationService = authorizationService;
         _fileStorageService = fileStorageService;
+        _httpClientFactory = httpClientFactory;
         _logger = logger;
     }
 
@@ -552,7 +555,7 @@ public class DeliveryNoteService : IDeliveryNoteService
             throw new InvalidOperationException($"File {fileId} not found for delivery note {deliveryNoteId}");
         }
 
-        var content = await _fileStorageService.DownloadAsync(file.StorageUrl, ct);
+        var content = await DownloadFileContentAsync(file.StorageUrl, ct);
         return new DeliveryNoteFileContentResponse
         {
             FileId = file.Id,
@@ -560,6 +563,20 @@ public class DeliveryNoteService : IDeliveryNoteService
             ContentType = file.ContentType,
             Content = content
         };
+    }
+
+    private async Task<byte[]> DownloadFileContentAsync(string storageUrl, CancellationToken ct)
+    {
+        if (Uri.TryCreate(storageUrl, UriKind.Absolute, out var uri) &&
+            (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+        {
+            var httpClient = _httpClientFactory.CreateClient();
+            using var response = await httpClient.GetAsync(uri, ct);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadAsByteArrayAsync(ct);
+        }
+
+        return await _fileStorageService.DownloadAsync(storageUrl, ct);
     }
 
     /// <inheritdoc />

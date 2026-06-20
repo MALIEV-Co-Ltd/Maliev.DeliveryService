@@ -580,6 +580,38 @@ public class DeliveryNoteService : IDeliveryNoteService
     }
 
     /// <inheritdoc />
+    public async Task RequestPdfGenerationAsync(string deliveryNoteId, string requestedBy, CancellationToken ct = default)
+    {
+        var exists = await _context.DeliveryNotes
+            .AsNoTracking()
+            .AnyAsync(dn => dn.DeliveryNoteId == deliveryNoteId && !dn.IsDeleted, ct);
+
+        if (!exists)
+        {
+            throw new InvalidOperationException($"Delivery note {deliveryNoteId} not found");
+        }
+
+        await PublishEventAsync(new DeliveryNotePdfRequestedEvent(
+            Guid.NewGuid(),
+            nameof(DeliveryNotePdfRequestedEvent),
+            MessageType.Event,
+            "1.0",
+            "DeliveryService",
+            ["PdfService"],
+            Guid.NewGuid(),
+            null,
+            DateTimeOffset.UtcNow,
+            false,
+            new DeliveryNotePdfRequestedEventPayload(
+                deliveryNoteId,
+                requestedBy,
+                DateTimeOffset.UtcNow
+            )), ct);
+
+        await _context.SaveChangesAsync(ct);
+    }
+
+    /// <inheritdoc />
     public async Task<DeliveryNoteResponse> UpdateAsync(
         string deliveryNoteId,
         UpdateDeliveryNoteRequest request,

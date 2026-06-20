@@ -212,22 +212,7 @@ public class DeliveryNotesController : ControllerBase
         try
         {
             var userId = User.GetUserId();
-            await _publishEndpoint.Publish(new DeliveryNotePdfRequestedEvent(
-                Guid.NewGuid(),
-                nameof(DeliveryNotePdfRequestedEvent),
-                MessageType.Event,
-                "1.0",
-                "DeliveryService",
-                ["PdfService"],
-                Guid.NewGuid(),
-                null,
-                DateTimeOffset.UtcNow,
-                false,
-                new DeliveryNotePdfRequestedEventPayload(
-                    id,
-                    userId,
-                    DateTimeOffset.UtcNow
-                )), ct);
+            await _deliveryNoteService.RequestPdfGenerationAsync(id, userId, ct);
 
             _logger.LogInformation(
                 "PDF generation requested for delivery note {DeliveryNoteId} by {UserId}",

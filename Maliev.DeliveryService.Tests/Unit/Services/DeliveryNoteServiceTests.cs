@@ -5,6 +5,7 @@ using Maliev.DeliveryService.Infrastructure.Persistence;
 using Maliev.DeliveryService.Domain.Entities;
 using Maliev.DeliveryService.Tests.Fakes;
 using Maliev.DeliveryService.Tests.Testing;
+using Maliev.MessagingContracts.Contracts.Delivery;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Memory;
@@ -922,6 +923,20 @@ public class DeliveryNoteServiceTests : IAsyncLifetime
         Assert.Equal((byte)'P', downloaded.Content[1]);
         Assert.Equal((byte)'D', downloaded.Content[2]);
         Assert.Equal((byte)'F', downloaded.Content[3]);
+    }
+
+    [Fact]
+    public async Task RequestPdfGenerationAsync_WithExistingDeliveryNote_PublishesPdfRequest()
+    {
+        var created = await CreateTestDeliveryNote();
+
+        await _service.RequestPdfGenerationAsync(created.DeliveryNoteId, "user");
+
+        Assert.True(_fakePublishEndpoint.WasPublished<DeliveryNotePdfRequestedEvent>());
+        var published = _fakePublishEndpoint.GetPublishedMessages<DeliveryNotePdfRequestedEvent>().Single();
+        Assert.Equal(created.DeliveryNoteId, published.Payload.DeliveryNoteId);
+        Assert.Equal("user", published.Payload.RequestedBy);
+        Assert.Contains("PdfService", published.ConsumedBy, StringComparer.OrdinalIgnoreCase);
     }
 
     [Fact]

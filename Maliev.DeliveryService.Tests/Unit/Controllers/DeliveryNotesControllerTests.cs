@@ -298,12 +298,8 @@ public class DeliveryNotesControllerTests
         var acceptedResult = Assert.IsType<AcceptedResult>(result.Result);
         var pdfResponse = Assert.IsType<PdfGenerationResponse>(acceptedResult.Value);
         Assert.Equal("DN-1", pdfResponse.DeliveryNoteId);
-        _mockPublishEndpoint.Verify(
-            x => x.Publish(
-                It.Is<DeliveryNotePdfRequestedEvent>(message =>
-                    message.Payload.DeliveryNoteId == "DN-1" &&
-                    message.ConsumedBy.Contains("PdfService", StringComparer.OrdinalIgnoreCase)),
-                It.IsAny<CancellationToken>()),
+        _mockService.Verify(
+            x => x.RequestPdfGenerationAsync("DN-1", "test-user", It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -389,7 +385,7 @@ public class DeliveryNotesControllerTests
         // Arrange
         _mockService.Setup(x => x.GetByIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new DeliveryNoteResponse { CustomerId = Guid.NewGuid() });
-        _mockPublishEndpoint.Setup(x => x.Publish(It.IsAny<Maliev.MessagingContracts.Contracts.Delivery.DeliveryNotePdfRequestedEvent>(), It.IsAny<CancellationToken>()))
+        _mockService.Setup(x => x.RequestPdfGenerationAsync("DN-1", "test-user", It.IsAny<CancellationToken>()))
             .ThrowsAsync(new Exception("BOOM"));
 
         // Act

@@ -51,8 +51,10 @@ try
 
         // Register all event consumers
         x.AddConsumer<OrderCompletedEventConsumer>();
-        x.AddConsumer<PdfGenerationCompletedEventConsumer>();
-        x.AddConsumer<PdfGenerationFailedEventConsumer>();
+        x.AddConsumer<PdfGenerationCompletedEventConsumer>()
+            .Endpoint(endpoint => endpoint.Name = "delivery-pdf-generation-completed");
+        x.AddConsumer<PdfGenerationFailedEventConsumer>()
+            .Endpoint(endpoint => endpoint.Name = "delivery-pdf-generation-failed");
     }); // RabbitMQ message bus (non-blocking startup)
 
     // IAM Registration

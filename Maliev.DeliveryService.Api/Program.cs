@@ -1,3 +1,4 @@
+using Maliev.DeliveryService.Api.Configuration;
 using Maliev.DeliveryService.Application.Abstractions;
 using Maliev.DeliveryService.Application.Services;
 using Maliev.DeliveryService.Infrastructure.Authorization;
@@ -82,7 +83,11 @@ try
     builder.Services.AddScoped<IDeliveryNoteAuthorizationService, DeliveryNoteAuthorizationService>();
     builder.Services.AddScoped<IDeliveryPdfRequestPublisher, MassTransitDeliveryPdfRequestPublisher>();
     builder.Services.AddScoped<IDeliveryNoteService, DeliveryNoteService>();
-    builder.Services.Configure<ShippopOptions>(builder.Configuration.GetSection(ShippopOptions.SectionName));
+    builder.Services
+        .AddOptions<ShippopOptions>()
+        .Bind(builder.Configuration.GetSection(ShippopOptions.SectionName))
+        .ValidateOnStart();
+    builder.Services.AddSingleton<IValidateOptions<ShippopOptions>, ShippopOptionsValidator>();
     builder.Services.Configure<GoShipOptions>(builder.Configuration.GetSection(GoShipOptions.SectionName));
 
     builder.Services.AddHttpClient<IShippopShippingGatewayService, ShippopShippingGatewayService>((serviceProvider, client) =>

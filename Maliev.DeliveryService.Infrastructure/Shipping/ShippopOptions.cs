@@ -13,7 +13,7 @@ public class ShippopOptions
     /// <summary>
     /// Gets or sets the domestic SHIPPOP base URL.
     /// </summary>
-    public string DomesticBaseUrl { get; set; } = "https://mkpservice.shippop.dev";
+    public string DomesticBaseUrl { get; set; } = "http://mkpservice.shippop.dev";
 
     /// <summary>
     /// Gets or sets the domestic SHIPPOP API key.

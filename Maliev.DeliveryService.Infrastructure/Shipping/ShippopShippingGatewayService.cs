@@ -115,26 +115,41 @@ public class ShippopShippingGatewayService : IShippopShippingGatewayService
 
     private object CreateDomesticRatePayload(ShippingRateRequest request)
     {
+        var courierCodes = request.CourierCodes
+            .Where(courierCode => !string.IsNullOrWhiteSpace(courierCode))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var data = new Dictionary<string, object?>();
+        var shipmentCount = courierCodes.Count == 0 ? 1 : courierCodes.Count;
+
+        for (var i = 0; i < shipmentCount; i++)
+        {
+            var shipment = new Dictionary<string, object?>
+            {
+                ["from"] = ToShippopAddress(request.From),
+                ["to"] = ToShippopAddress(request.To),
+                ["parcel"] = new
+                {
+                    name = request.Parcel.Name,
+                    weight = request.Parcel.Weight,
+                    width = request.Parcel.Width,
+                    length = request.Parcel.Length,
+                    height = request.Parcel.Height
+                }
+            };
+
+            if (courierCodes.Count > 0)
+            {
+                shipment["courier_code"] = courierCodes[i];
+            }
+
+            data[i.ToString(CultureInfo.InvariantCulture)] = shipment;
+        }
+
         return new
         {
             api_key = _options.DomesticApiKey,
-            data = new Dictionary<string, object>
-            {
-                ["0"] = new
-                {
-                    from = ToShippopAddress(request.From),
-                    to = ToShippopAddress(request.To),
-                    parcel = new
-                    {
-                        name = request.Parcel.Name,
-                        weight = request.Parcel.Weight,
-                        width = request.Parcel.Width,
-                        length = request.Parcel.Length,
-                        height = request.Parcel.Height
-                    },
-                    courier_code = request.CourierCodes
-                }
-            }
+            data
         };
     }
 

@@ -51,10 +51,51 @@ public class ShippopShippingGatewayServiceTests
         Assert.True(document.RootElement.GetProperty("data").TryGetProperty("0", out var shipment));
         Assert.Equal("10400", shipment.GetProperty("from").GetProperty("postcode").GetString());
         Assert.Equal("TH", shipment.GetProperty("to").GetProperty("country_code").GetString());
-        Assert.Equal("EMST", shipment.GetProperty("courier_code")[0].GetString());
+        Assert.Equal("EMST", shipment.GetProperty("courier_code").GetString());
         var rate = Assert.Single(rates);
         Assert.Equal("EMST", rate.CourierCode);
         Assert.Equal(37m, rate.Price);
+    }
+
+    [Fact]
+    public async Task GetRates_WithMultipleCourierCodes_SendsOnePricelistItemPerCourier()
+    {
+        var handler = new RecordingHandler(
+            HttpStatusCode.OK,
+            """
+            {
+              "status": true,
+              "data": {
+                "0": {
+                  "EMST": {
+                    "courier_code": "EMST",
+                    "courier_name": "Thailand Post EMS",
+                    "price": 37
+                  }
+                },
+                "1": {
+                  "DHL": {
+                    "courier_code": "DHL",
+                    "courier_name": "DHL",
+                    "price": 52
+                  }
+                }
+              }
+            }
+            """);
+        var request = CreateRateRequest();
+        request.CourierCodes = ["EMST", "DHL"];
+        var service = CreateService(handler);
+
+        var rates = await service.GetRatesAsync(request, CancellationToken.None);
+
+        using var document = JsonDocument.Parse(handler.Body);
+        var data = document.RootElement.GetProperty("data");
+        Assert.Equal("EMST", data.GetProperty("0").GetProperty("courier_code").GetString());
+        Assert.Equal("DHL", data.GetProperty("1").GetProperty("courier_code").GetString());
+        Assert.Equal(2, rates.Count);
+        Assert.Contains(rates, rate => rate.CourierCode == "EMST" && rate.Price == 37m);
+        Assert.Contains(rates, rate => rate.CourierCode == "DHL" && rate.Price == 52m);
     }
 
     [Fact]

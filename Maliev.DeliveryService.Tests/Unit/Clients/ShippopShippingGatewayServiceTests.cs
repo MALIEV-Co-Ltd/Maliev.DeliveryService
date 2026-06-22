@@ -50,10 +50,61 @@ public class ShippopShippingGatewayServiceTests
         Assert.Equal("test-key", document.RootElement.GetProperty("api_key").GetString());
         Assert.True(document.RootElement.GetProperty("data").TryGetProperty("0", out var shipment));
         Assert.Equal("10400", shipment.GetProperty("from").GetProperty("postcode").GetString());
+        Assert.Equal("TH", shipment.GetProperty("to").GetProperty("country_code").GetString());
         Assert.Equal("EMST", shipment.GetProperty("courier_code")[0].GetString());
         var rate = Assert.Single(rates);
         Assert.Equal("EMST", rate.CourierCode);
         Assert.Equal(37m, rate.Price);
+    }
+
+    [Fact]
+    public async Task GetRates_ForInternationalPublicRates_UsesShippopInterPublicPriceEndpoint()
+    {
+        var handler = new RecordingHandler(
+            HttpStatusCode.OK,
+            """
+            {
+              "couriers": [
+                {
+                  "id": 2,
+                  "name": "Aramex - PPX",
+                  "duration": 4,
+                  "price": "609.00",
+                  "code": "aramex_ppx",
+                  "ref": "CRARMPPX",
+                  "type": "pick_up",
+                  "error_code": null
+                },
+                {
+                  "id": 5,
+                  "name": "Thai Post - ePacket",
+                  "price": null,
+                  "code": "thai_post_epackage",
+                  "error_code": "notSupport.weight"
+                }
+              ]
+            }
+            """);
+        var request = CreateRateRequest();
+        request.UsePublicRates = true;
+        request.To.CountryCode = "au";
+        var service = CreateService(handler, domesticApiKey: "");
+
+        var rates = await service.GetRatesAsync(request, CancellationToken.None);
+
+        Assert.Equal("https://inter.shippop.test/api/public/courier/price", handler.RequestUri?.ToString());
+        using var document = JsonDocument.Parse(handler.Body);
+        Assert.Equal(500, document.RootElement.GetProperty("weight").GetInt32());
+        Assert.Equal("AU", document.RootElement.GetProperty("country_code").GetString());
+        Assert.True(document.RootElement.GetProperty("show_all").GetBoolean());
+        var rate = Assert.Single(rates);
+        Assert.Equal("aramex_ppx", rate.CourierCode);
+        Assert.Equal("Aramex - PPX", rate.CourierName);
+        Assert.Equal(609m, rate.Price);
+        Assert.Equal("THB", rate.Currency);
+        Assert.Equal("pick_up", rate.ServiceLevel);
+        Assert.Equal("4", rate.EstimatedDelivery);
+        Assert.Equal("Shippop", rate.Provider);
     }
 
     [Fact]

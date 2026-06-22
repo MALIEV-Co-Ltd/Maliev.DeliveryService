@@ -50,6 +50,12 @@ public class ShippingAddressRequest
     public string Postcode { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the ISO 3166-1 alpha-2 country code.
+    /// </summary>
+    [MaxLength(2)]
+    public string CountryCode { get; set; } = "TH";
+
+    /// <summary>
     /// Gets or sets the contact phone number.
     /// </summary>
     [Required]

@@ -67,8 +67,12 @@ public class ShippopShippingGatewayService : IShippopShippingGatewayService
     /// <inheritdoc />
     public async Task<IReadOnlyList<ShippingRateOptionResponse>> GetRatesAsync(ShippingRateRequest request, CancellationToken ct = default)
     {
-        EnsureDomesticApiKeyConfigured();
+        if (ShouldUseInternationalPublicRates(request))
+        {
+            return await GetInternationalPublicRatesAsync(request, ct);
+        }
 
+        EnsureDomesticApiKeyConfigured();
         var path = request.UsePublicRates ? "public/pricelist/" : "pricelist/";
         using var response = await _httpClient.PostAsJsonAsync(path, CreateDomesticRatePayload(request), JsonOptions, ct);
         var content = await response.Content.ReadAsStringAsync(ct);
@@ -134,6 +138,49 @@ public class ShippopShippingGatewayService : IShippopShippingGatewayService
         };
     }
 
+    private async Task<IReadOnlyList<ShippingRateOptionResponse>> GetInternationalPublicRatesAsync(
+        ShippingRateRequest request,
+        CancellationToken ct)
+    {
+        using var response = await _httpClient.PostAsJsonAsync(
+            CreateInternationalPublicPriceUri(),
+            CreateInternationalPublicPricePayload(request),
+            JsonOptions,
+            ct);
+        var content = await response.Content.ReadAsStringAsync(ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"SHIPPOP international public rate request failed with HTTP {(int)response.StatusCode}.");
+        }
+
+        var root = JsonNode.Parse(content) ?? throw new InvalidOperationException("SHIPPOP international public rate response was empty.");
+        var rates = ExtractInternationalPublicRateOptions(root).ToList();
+
+        if (rates.Count == 0)
+        {
+            throw new InvalidOperationException("SHIPPOP did not return any international public shipping rate options.");
+        }
+
+        return rates;
+    }
+
+    private static bool ShouldUseInternationalPublicRates(ShippingRateRequest request)
+    {
+        return request.UsePublicRates &&
+            !string.Equals(NormalizeCountryCode(request.To.CountryCode), "TH", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static object CreateInternationalPublicPricePayload(ShippingRateRequest request)
+    {
+        return new
+        {
+            weight = Convert.ToInt32(Math.Ceiling(request.Parcel.Weight)),
+            country_code = NormalizeCountryCode(request.To.CountryCode),
+            show_all = true
+        };
+    }
+
     private static object ToShippopAddress(ShippingAddressRequest address)
     {
         return new
@@ -144,6 +191,7 @@ public class ShippopShippingGatewayService : IShippopShippingGatewayService
             state = address.State,
             province = address.Province,
             postcode = address.Postcode,
+            country_code = NormalizeCountryCode(address.CountryCode),
             tel = address.Tel,
             email = address.Email,
             lat = address.Lat,
@@ -179,6 +227,37 @@ public class ShippopShippingGatewayService : IShippopShippingGatewayService
                 Currency = ReadString(node, "currency") ?? "THB",
                 ServiceLevel = ReadString(node, "service_level", "serviceLevel", "service_type", "serviceType"),
                 EstimatedDelivery = ReadString(node, "estimate_time", "estimatedDelivery", "delivery_time"),
+                Provider = "Shippop"
+            };
+        }
+    }
+
+    private static IEnumerable<ShippingRateOptionResponse> ExtractInternationalPublicRateOptions(JsonNode root)
+    {
+        foreach (var node in Descendants(root).OfType<JsonObject>())
+        {
+            var price = ReadDecimal(node, "price");
+            var errorCode = ReadString(node, "error_code", "errorCode");
+
+            if (price is null || !string.IsNullOrWhiteSpace(errorCode))
+            {
+                continue;
+            }
+
+            var courierCode = ReadString(node, "code", "ref", "courier_code", "courierCode", "id");
+            if (string.IsNullOrWhiteSpace(courierCode))
+            {
+                continue;
+            }
+
+            yield return new ShippingRateOptionResponse
+            {
+                CourierCode = courierCode,
+                CourierName = ReadString(node, "name", "courier_name", "courierName") ?? courierCode,
+                Price = price.Value,
+                Currency = "THB",
+                ServiceLevel = ReadString(node, "type", "ref"),
+                EstimatedDelivery = ReadString(node, "duration", "estimatedDelivery", "delivery_time"),
                 Provider = "Shippop"
             };
         }
@@ -223,6 +302,15 @@ public class ShippopShippingGatewayService : IShippopShippingGatewayService
         return !string.IsNullOrWhiteSpace(ReadString(node, "status", "description", "detail")) &&
             (!string.IsNullOrWhiteSpace(ReadString(node, "date", "datetime", "created_at", "createdAt", "timestamp", "occurred_date", "occurredDate")) ||
                 !string.IsNullOrWhiteSpace(ReadString(node, "location", "value")));
+    }
+
+    private Uri CreateInternationalPublicPriceUri()
+    {
+        var baseUrl = string.IsNullOrWhiteSpace(_options.InternationalBaseUrl)
+            ? "https://inter.shippop.dev"
+            : _options.InternationalBaseUrl;
+
+        return new Uri($"{baseUrl.TrimEnd('/')}/api/public/courier/price", UriKind.Absolute);
     }
 
     private Uri CreatePublicTrackingUri(string trackingCode)
@@ -312,6 +400,13 @@ public class ShippopShippingGatewayService : IShippopShippingGatewayService
         return decimal.TryParse(raw, NumberStyles.Number, CultureInfo.InvariantCulture, out var value)
             ? value
             : null;
+    }
+
+    private static string NormalizeCountryCode(string? countryCode)
+    {
+        return string.IsNullOrWhiteSpace(countryCode)
+            ? "TH"
+            : countryCode.Trim().ToUpperInvariant();
     }
 
     private static DateTimeOffset? ReadDateTimeOffset(JsonObject obj, params string[] names)

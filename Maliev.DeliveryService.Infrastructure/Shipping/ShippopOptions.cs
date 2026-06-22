@@ -28,7 +28,7 @@ public class ShippopOptions
     /// <summary>
     /// Gets or sets the international SHIPPOP API base URL.
     /// </summary>
-    public string? InternationalBaseUrl { get; set; }
+    public string? InternationalBaseUrl { get; set; } = "https://inter.shippop.dev";
 
     /// <summary>
     /// Gets or sets the international bearer token.

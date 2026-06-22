@@ -97,11 +97,7 @@ public class ShippopShippingGatewayService : IShippopShippingGatewayService
             throw new ArgumentException("Tracking code is required.", nameof(trackingCode));
         }
 
-        using var response = await _httpClient.PostAsJsonAsync(
-            "tracking/",
-            new { tracking_code = trackingCode },
-            JsonOptions,
-            ct);
+        using var response = await _httpClient.GetAsync(CreatePublicTrackingUri(trackingCode), ct);
         var content = await response.Content.ReadAsStringAsync(ct);
 
         if (!response.IsSuccessStatusCode)
@@ -192,35 +188,69 @@ public class ShippopShippingGatewayService : IShippopShippingGatewayService
     {
         var objects = Descendants(root).OfType<JsonObject>().ToList();
         var summary = objects.FirstOrDefault(x =>
-            !string.IsNullOrWhiteSpace(ReadString(x, "tracking_code", "trackingCode", "tracking_number", "trackingNumber"))) ??
+            !string.IsNullOrWhiteSpace(ReadString(x, "courier_tracking_code", "courierTrackingCode", "tracking_code", "trackingCode", "tracking_number", "trackingNumber"))) ??
             objects.FirstOrDefault() ??
             new JsonObject();
         var events = objects
-            .Where(x => !string.IsNullOrWhiteSpace(ReadString(x, "status", "description", "detail")))
+            .Where(IsTrackingEventObject)
             .Select(ToTrackingEvent)
             .Where(x => !string.IsNullOrWhiteSpace(x.Status) || !string.IsNullOrWhiteSpace(x.Description))
             .ToList();
+        var currentStatus = ReadString(summary, "status", "current_status", "currentStatus") ??
+            objects.Select(x => ReadString(x, "status", "current_status", "currentStatus")).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ??
+            events.FirstOrDefault()?.Status ??
+            "unknown";
 
         return new ShippingTrackingResponse
         {
-            TrackingCode = ReadString(summary, "tracking_code", "trackingCode", "tracking_number", "trackingNumber") ?? trackingCode,
+            TrackingCode = ReadString(summary, "courier_tracking_code", "courierTrackingCode", "tracking_code", "trackingCode", "tracking_number", "trackingNumber") ?? trackingCode,
             CourierCode = ReadString(summary, "courier_code", "courierCode"),
             CourierName = ReadString(summary, "courier_name", "courierName"),
-            Status = ReadString(summary, "status", "current_status", "currentStatus") ?? events.FirstOrDefault()?.Status ?? "unknown",
+            Status = currentStatus,
             Description = ReadString(summary, "description", "detail"),
             Events = events,
             Provider = "Shippop"
         };
     }
 
+    private static bool IsTrackingEventObject(JsonObject node)
+    {
+        if (node.TryGetPropertyValue("tracking", out var trackingNode) && trackingNode is JsonObject)
+        {
+            return true;
+        }
+
+        return !string.IsNullOrWhiteSpace(ReadString(node, "status", "description", "detail")) &&
+            (!string.IsNullOrWhiteSpace(ReadString(node, "date", "datetime", "created_at", "createdAt", "timestamp", "occurred_date", "occurredDate")) ||
+                !string.IsNullOrWhiteSpace(ReadString(node, "location", "value")));
+    }
+
+    private Uri CreatePublicTrackingUri(string trackingCode)
+    {
+        var baseUrl = string.IsNullOrWhiteSpace(_options.InternationalBaseUrl)
+            ? "https://inter.shippop.dev"
+            : _options.InternationalBaseUrl;
+
+        return new Uri(
+            $"{baseUrl.TrimEnd('/')}/api/public/tracking/detail/{Uri.EscapeDataString(trackingCode)}",
+            UriKind.Absolute);
+    }
+
     private static ShippingTrackingEventResponse ToTrackingEvent(JsonObject node)
     {
+        var tracking = node.TryGetPropertyValue("tracking", out var trackingNode) && trackingNode is JsonObject trackingObject
+            ? trackingObject
+            : null;
+
         return new ShippingTrackingEventResponse
         {
-            OccurredAt = ReadDateTimeOffset(node, "date", "datetime", "created_at", "createdAt", "timestamp"),
-            Status = ReadString(node, "status", "current_status", "currentStatus") ?? string.Empty,
-            Location = ReadString(node, "location"),
+            OccurredAt = ReadDateTimeOffset(node, "date", "datetime", "created_at", "createdAt", "timestamp", "occurred_date", "occurredDate"),
+            Status = ReadString(node, "status", "current_status", "currentStatus")
+                ?? ReadString(tracking, "name", "courier_message", "courierMessage")
+                ?? string.Empty,
+            Location = ReadString(node, "location", "value"),
             Description = ReadString(node, "description", "detail")
+                ?? ReadString(tracking, "courier_message", "courierMessage", "name")
         };
     }
 
@@ -256,8 +286,13 @@ public class ShippopShippingGatewayService : IShippopShippingGatewayService
         }
     }
 
-    private static string? ReadString(JsonObject obj, params string[] names)
+    private static string? ReadString(JsonObject? obj, params string[] names)
     {
+        if (obj is null)
+        {
+            return null;
+        }
+
         foreach (var name in names)
         {
             if (obj.TryGetPropertyValue(name, out var value) && value is not null)

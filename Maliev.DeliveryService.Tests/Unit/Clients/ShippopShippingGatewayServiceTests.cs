@@ -74,30 +74,45 @@ public class ShippopShippingGatewayServiceTests
             HttpStatusCode.OK,
             """
             {
-              "tracking_code": "SP529189074",
-              "courier_code": "EMST",
-              "courier_name": "Thailand Post EMS",
-              "status": "delivered",
-              "description": "Delivered to recipient",
-              "history": [
-                {
-                  "date": "2026-06-19T10:00:00Z",
-                  "status": "delivered",
-                  "description": "Delivered to recipient"
+              "tracking_data": {
+                "trackings": [
+                  {
+                    "value": "Bangkok EMS Centre",
+                    "occurred_date": "2026-06-19T10:00:00Z",
+                    "tracking": {
+                      "name": "Final delivery",
+                      "courier_message": "Delivered to recipient"
+                    }
+                  }
+                ],
+                "shipment": {
+                  "courier_tracking_code": "SP529189074",
+                  "shipment": {
+                    "status": "complete",
+                    "tracking_code": "INT00000307"
+                  },
+                  "order": {
+                    "courier": {
+                      "code": "EMST",
+                      "name": "Thailand Post EMS"
+                    }
+                  }
                 }
-              ]
+              }
             }
             """);
         var service = CreateService(handler);
 
         var tracking = await service.GetTrackingAsync("SP529189074", CancellationToken.None);
 
-        Assert.Equal("https://mkpservice.shippop.test/tracking/", handler.RequestUri?.ToString());
-        using var document = JsonDocument.Parse(handler.Body);
-        Assert.Equal("SP529189074", document.RootElement.GetProperty("tracking_code").GetString());
+        Assert.Equal("https://inter.shippop.test/api/public/tracking/detail/SP529189074", handler.RequestUri?.ToString());
+        Assert.Equal(string.Empty, handler.Body);
         Assert.Equal("SP529189074", tracking.TrackingCode);
-        Assert.Equal("delivered", tracking.Status);
-        Assert.NotEmpty(tracking.Events);
+        Assert.Equal("complete", tracking.Status);
+        var trackingEvent = Assert.Single(tracking.Events);
+        Assert.Equal("Final delivery", trackingEvent.Status);
+        Assert.Equal("Bangkok EMS Centre", trackingEvent.Location);
+        Assert.Equal("Delivered to recipient", trackingEvent.Description);
     }
 
     private static ShippopShippingGatewayService CreateService(RecordingHandler handler, string domesticApiKey = "test-key")
@@ -109,7 +124,8 @@ public class ShippopShippingGatewayServiceTests
         var options = Options.Create(new ShippopOptions
         {
             DomesticBaseUrl = "https://mkpservice.shippop.test",
-            DomesticApiKey = domesticApiKey
+            DomesticApiKey = domesticApiKey,
+            InternationalBaseUrl = "https://inter.shippop.test"
         });
 
         return new ShippopShippingGatewayService(httpClient, options);

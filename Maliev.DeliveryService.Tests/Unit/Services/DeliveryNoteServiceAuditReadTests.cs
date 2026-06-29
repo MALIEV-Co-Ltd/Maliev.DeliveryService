@@ -3,7 +3,7 @@ using Maliev.DeliveryService.Domain.Entities;
 using Maliev.DeliveryService.Infrastructure.Persistence;
 using Maliev.DeliveryService.Infrastructure.Services;
 using Maliev.DeliveryService.Tests.Fakes;
-using Microsoft.Data.Sqlite;
+using Maliev.DeliveryService.Tests.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Memory;
@@ -11,22 +11,20 @@ using Microsoft.Extensions.Options;
 
 namespace Maliev.DeliveryService.Tests.Unit.Services;
 
-public sealed class DeliveryNoteServiceAuditReadTests : IDisposable
+[Collection("PostgreSqlDatabase")]
+public sealed class DeliveryNoteServiceAuditReadTests : IAsyncLifetime
 {
-    private readonly SqliteConnection _connection;
     private readonly DeliveryDbContext _context;
 
-    public DeliveryNoteServiceAuditReadTests()
+    public DeliveryNoteServiceAuditReadTests(PostgreSqlTestFixture fixture)
     {
-        _connection = new SqliteConnection("Data Source=:memory:");
-        _connection.Open();
+        _context = fixture.CreateDbContext();
+    }
 
-        var options = new DbContextOptionsBuilder<DeliveryDbContext>()
-            .UseSqlite(_connection)
-            .Options;
-
-        _context = new DeliveryDbContext(options);
-        _context.Database.EnsureCreated();
+    public async Task InitializeAsync()
+    {
+        await _context.Database.ExecuteSqlRawAsync("DELETE FROM delivery_status_audits");
+        await _context.Database.ExecuteSqlRawAsync("DELETE FROM delivery_notes");
     }
 
     [Fact]
@@ -37,28 +35,17 @@ public sealed class DeliveryNoteServiceAuditReadTests : IDisposable
         var firstChange = DateTime.UtcNow.AddMinutes(-5);
         var secondChange = DateTime.UtcNow.AddMinutes(-2);
 
-        await _context.Database.ExecuteSqlInterpolatedAsync($"""
-            INSERT INTO delivery_notes (
-                delivery_note_id,
-                order_id,
-                customer_id,
-                delivery_date,
-                status,
-                created_at,
-                created_by,
-                is_deleted,
-                xmin)
-            VALUES (
-                {deliveryNoteId},
-                {"ORD-AUDIT-READ"},
-                {customerId},
-                {DateTime.UtcNow.AddDays(1)},
-                {"PartiallyDelivered"},
-                {DateTime.UtcNow.AddMinutes(-10)},
-                {"scanner-user"},
-                {false},
-                {1})
-            """);
+        _context.DeliveryNotes.Add(new DeliveryNote
+        {
+            DeliveryNoteId = deliveryNoteId,
+            OrderId = "ORD-AUDIT-READ",
+            CustomerId = customerId,
+            DeliveryDate = DateTime.UtcNow.AddDays(1),
+            Status = DeliveryStatus.PartiallyDelivered,
+            CreatedAt = DateTime.UtcNow.AddMinutes(-10),
+            CreatedBy = "scanner-user",
+            IsDeleted = false
+        });
         _context.DeliveryStatusAudits.AddRange(
             new DeliveryStatusAudit
             {
@@ -97,10 +84,9 @@ public sealed class DeliveryNoteServiceAuditReadTests : IDisposable
         });
     }
 
-    public void Dispose()
+    public async Task DisposeAsync()
     {
-        _context.Dispose();
-        _connection.Dispose();
+        await _context.DisposeAsync();
     }
 
     private DeliveryNoteService CreateService(IDeliveryNoteAuthorizationService authorizationService)

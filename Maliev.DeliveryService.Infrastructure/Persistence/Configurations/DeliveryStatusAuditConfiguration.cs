@@ -30,6 +30,11 @@ public class DeliveryStatusAuditConfiguration : IEntityTypeConfiguration<Deliver
             .HasForeignKey(audit => audit.DeliveryNoteId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // Matching global query filter to suppress EF Core warning 10622:
+        // DeliveryNote has a soft-delete filter, so audits should only be visible
+        // when the related delivery note is not soft-deleted.
+        builder.HasQueryFilter(audit => !audit.DeliveryNote!.IsDeleted);
+
         builder.HasIndex(audit => audit.DeliveryNoteId)
             .HasDatabaseName("idx_delivery_status_audits_delivery_note_id");
         builder.HasIndex(audit => audit.ChangedAt)

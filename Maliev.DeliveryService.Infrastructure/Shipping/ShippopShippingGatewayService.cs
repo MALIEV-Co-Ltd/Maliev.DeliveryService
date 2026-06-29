@@ -101,16 +101,13 @@ public class ShippopShippingGatewayService : IShippopShippingGatewayService
             throw new ArgumentException("Tracking code is required.", nameof(trackingCode));
         }
 
-        using var response = await _httpClient.GetAsync(CreatePublicTrackingUri(trackingCode), ct);
-        var content = await response.Content.ReadAsStringAsync(ct);
-
-        if (!response.IsSuccessStatusCode)
+        var domesticTracking = await TryGetDomesticTrackingAsync(trackingCode, ct);
+        if (domesticTracking is not null)
         {
-            throw new InvalidOperationException($"SHIPPOP tracking request failed with HTTP {(int)response.StatusCode}.");
+            return domesticTracking;
         }
 
-        var root = JsonNode.Parse(content) ?? throw new InvalidOperationException("SHIPPOP tracking response was empty.");
-        return ExtractTracking(root, trackingCode);
+        return await GetInternationalPublicTrackingAsync(trackingCode, ct);
     }
 
     private object CreateDomesticRatePayload(ShippingRateRequest request)
@@ -135,7 +132,8 @@ public class ShippopShippingGatewayService : IShippopShippingGatewayService
                     width = request.Parcel.Width,
                     length = request.Parcel.Length,
                     height = request.Parcel.Height
-                }
+                },
+                ["showall"] = 1
             };
 
             if (courierCodes.Count > 0)
@@ -178,6 +176,42 @@ public class ShippopShippingGatewayService : IShippopShippingGatewayService
         }
 
         return rates;
+    }
+
+    private async Task<ShippingTrackingResponse?> TryGetDomesticTrackingAsync(string trackingCode, CancellationToken ct)
+    {
+        using var response = await _httpClient.PostAsJsonAsync("tracking/", new { tracking_code = trackingCode }, JsonOptions, ct);
+        var content = await response.Content.ReadAsStringAsync(ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        var root = JsonNode.Parse(content) ?? throw new InvalidOperationException("SHIPPOP tracking response was empty.");
+        if (IsFailedResponse(root))
+        {
+            return null;
+        }
+
+        var tracking = ExtractTracking(root, trackingCode);
+        return tracking.Status.Equals("unknown", StringComparison.OrdinalIgnoreCase)
+            ? null
+            : tracking;
+    }
+
+    private async Task<ShippingTrackingResponse> GetInternationalPublicTrackingAsync(string trackingCode, CancellationToken ct)
+    {
+        using var response = await _httpClient.GetAsync(CreatePublicTrackingUri(trackingCode), ct);
+        var content = await response.Content.ReadAsStringAsync(ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"SHIPPOP tracking request failed with HTTP {(int)response.StatusCode}.");
+        }
+
+        var root = JsonNode.Parse(content) ?? throw new InvalidOperationException("SHIPPOP tracking response was empty.");
+        return ExtractTracking(root, trackingCode);
     }
 
     private static bool ShouldUseInternationalPublicRates(ShippingRateRequest request)
@@ -305,6 +339,15 @@ public class ShippopShippingGatewayService : IShippopShippingGatewayService
             Events = events,
             Provider = "Shippop"
         };
+    }
+
+    private static bool IsFailedResponse(JsonNode root)
+    {
+        return root is JsonObject obj &&
+            obj.TryGetPropertyValue("status", out var statusNode) &&
+            statusNode is JsonValue statusValue &&
+            statusValue.TryGetValue<bool>(out var status) &&
+            !status;
     }
 
     private static bool IsTrackingEventObject(JsonObject node)

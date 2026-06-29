@@ -52,6 +52,7 @@ public class ShippopShippingGatewayServiceTests
         Assert.Equal("10400", shipment.GetProperty("from").GetProperty("postcode").GetString());
         Assert.Equal("TH", shipment.GetProperty("to").GetProperty("country_code").GetString());
         Assert.Equal("EMST", shipment.GetProperty("courier_code").GetString());
+        Assert.Equal(1, shipment.GetProperty("showall").GetInt32());
         var rate = Assert.Single(rates);
         Assert.Equal("EMST", rate.CourierCode);
         Assert.Equal(37m, rate.Price);
@@ -93,6 +94,8 @@ public class ShippopShippingGatewayServiceTests
         var data = document.RootElement.GetProperty("data");
         Assert.Equal("EMST", data.GetProperty("0").GetProperty("courier_code").GetString());
         Assert.Equal("DHL", data.GetProperty("1").GetProperty("courier_code").GetString());
+        Assert.Equal(1, data.GetProperty("0").GetProperty("showall").GetInt32());
+        Assert.Equal(1, data.GetProperty("1").GetProperty("showall").GetInt32());
         Assert.Equal(2, rates.Count);
         Assert.Contains(rates, rate => rate.CourierCode == "EMST" && rate.Price == 37m);
         Assert.Contains(rates, rate => rate.CourierCode == "DHL" && rate.Price == 52m);
@@ -160,7 +163,7 @@ public class ShippopShippingGatewayServiceTests
     }
 
     [Fact]
-    public async Task GetTracking_SendsTrackingPayloadAndParsesStatus()
+    public async Task GetTracking_SendsDomesticTrackingPayloadAndParsesStatus()
     {
         var handler = new RecordingHandler(
             HttpStatusCode.OK,
@@ -197,14 +200,42 @@ public class ShippopShippingGatewayServiceTests
 
         var tracking = await service.GetTrackingAsync("SP529189074", CancellationToken.None);
 
-        Assert.Equal("https://inter.shippop.test/api/public/tracking/detail/SP529189074", handler.RequestUri?.ToString());
-        Assert.Equal(string.Empty, handler.Body);
+        Assert.Equal("https://mkpservice.shippop.test/tracking/", handler.RequestUri?.ToString());
+        using var document = JsonDocument.Parse(handler.Body);
+        Assert.Equal("SP529189074", document.RootElement.GetProperty("tracking_code").GetString());
         Assert.Equal("SP529189074", tracking.TrackingCode);
         Assert.Equal("complete", tracking.Status);
         var trackingEvent = Assert.Single(tracking.Events);
         Assert.Equal("Final delivery", trackingEvent.Status);
         Assert.Equal("Bangkok EMS Centre", trackingEvent.Location);
         Assert.Equal("Delivered to recipient", trackingEvent.Description);
+    }
+
+    [Fact]
+    public async Task GetTracking_WhenDomesticTrackingFails_UsesInterPublicTrackingEndpoint()
+    {
+        var handler = new RecordingHandler(
+            (HttpStatusCode.OK, """{ "status": false, "message": "not found" }"""),
+            (HttpStatusCode.OK,
+                """
+                {
+                  "tracking_data": {
+                    "shipment": {
+                      "courier_tracking_code": "SP529189074",
+                      "shipment": {
+                        "status": "complete"
+                      }
+                    }
+                  }
+                }
+                """));
+        var service = CreateService(handler);
+
+        var tracking = await service.GetTrackingAsync("SP529189074", CancellationToken.None);
+
+        Assert.Equal("https://mkpservice.shippop.test/tracking/", handler.RequestUris[0]?.ToString());
+        Assert.Equal("https://inter.shippop.test/api/public/tracking/detail/SP529189074", handler.RequestUris[1]?.ToString());
+        Assert.Equal("complete", tracking.Status);
     }
 
     private static ShippopShippingGatewayService CreateService(RecordingHandler handler, string domesticApiKey = "test-key")
@@ -261,29 +292,39 @@ public class ShippopShippingGatewayServiceTests
 
     private sealed class RecordingHandler : HttpMessageHandler
     {
-        private readonly HttpStatusCode _statusCode;
-        private readonly string _response;
+        private readonly Queue<(HttpStatusCode StatusCode, string Response)> _responses;
+        private readonly List<Uri?> _requestUris = [];
 
         public RecordingHandler(HttpStatusCode statusCode, string response)
+            : this((statusCode, response))
         {
-            _statusCode = statusCode;
-            _response = response;
+        }
+
+        public RecordingHandler(params (HttpStatusCode StatusCode, string Response)[] responses)
+        {
+            _responses = new Queue<(HttpStatusCode StatusCode, string Response)>(responses);
         }
 
         public Uri? RequestUri { get; private set; }
+
+        public IReadOnlyList<Uri?> RequestUris => _requestUris;
 
         public string Body { get; private set; } = string.Empty;
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             RequestUri = request.RequestUri;
+            _requestUris.Add(request.RequestUri);
             Body = request.Content is null
                 ? string.Empty
                 : await request.Content.ReadAsStringAsync(cancellationToken);
+            var response = _responses.Count > 1
+                ? _responses.Dequeue()
+                : _responses.Peek();
 
-            return new HttpResponseMessage(_statusCode)
+            return new HttpResponseMessage(response.StatusCode)
             {
-                Content = new StringContent(_response, Encoding.UTF8, "application/json")
+                Content = new StringContent(response.Response, Encoding.UTF8, "application/json")
             };
         }
     }

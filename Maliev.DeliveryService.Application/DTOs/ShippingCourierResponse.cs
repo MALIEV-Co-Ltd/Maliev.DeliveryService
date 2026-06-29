@@ -21,6 +21,11 @@ public class ShippingCourierResponse
     public string? Note { get; set; }
 
     /// <summary>
+    /// Gets or sets the courier logo URL exposed to MALIEV clients.
+    /// </summary>
+    public string? LogoUrl { get; set; }
+
+    /// <summary>
     /// Gets or sets the shipping scope, such as domestic or international.
     /// </summary>
     public string Scope { get; set; } = "domestic";

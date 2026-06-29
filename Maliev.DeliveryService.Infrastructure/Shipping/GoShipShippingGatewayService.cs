@@ -7,6 +7,7 @@ using System.Text.Json.Nodes;
 
 using Maliev.DeliveryService.Application.Abstractions;
 using Maliev.DeliveryService.Application.DTOs;
+using Maliev.DeliveryService.Application.Services;
 using Microsoft.Extensions.Options;
 
 namespace Maliev.DeliveryService.Infrastructure.Shipping;
@@ -54,6 +55,7 @@ public class GoShipShippingGatewayService : IGoShipShippingGatewayService
                 CourierCode = ReadString(node, "code") ?? string.Empty,
                 CourierName = ReadString(node, "name") ?? string.Empty,
                 Note = ReadString(node, "description"),
+                LogoUrl = CourierLogoCatalog.ResolveLogoUrl(ReadString(node, "code"), ReadString(node, "name")),
                 Provider = ProviderName
             })
             .Where(courier => !string.IsNullOrWhiteSpace(courier.CourierCode))
@@ -176,6 +178,7 @@ public class GoShipShippingGatewayService : IGoShipShippingGatewayService
             Price = ReadDecimal(node, "total", "price") ?? 0m,
             Currency = "THB",
             EstimatedDelivery = ReadString(node, "delivery_time"),
+            CourierLogoUrl = CourierLogoCatalog.ResolveLogoUrl(courierCode, ReadString(node, "carrier")),
             Provider = ProviderName
         };
     }

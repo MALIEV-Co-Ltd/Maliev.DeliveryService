@@ -83,6 +83,7 @@ try
     builder.Services.AddScoped<IDeliveryNoteAuthorizationService, DeliveryNoteAuthorizationService>();
     builder.Services.AddScoped<IDeliveryPdfRequestPublisher, MassTransitDeliveryPdfRequestPublisher>();
     builder.Services.AddScoped<IDeliveryNoteService, DeliveryNoteService>();
+    builder.Services.AddSingleton<IShippingPackagePlanner, ShippingPackagePlanner>();
     builder.Services
         .AddOptions<ShippopOptions>()
         .Bind(builder.Configuration.GetSection(ShippopOptions.SectionName))

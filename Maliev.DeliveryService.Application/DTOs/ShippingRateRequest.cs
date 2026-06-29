@@ -31,6 +31,17 @@ public class ShippingRateRequest
     public List<string> CourierCodes { get; set; } = [];
 
     /// <summary>
+    /// Gets or sets optional project parts to package from analyzed bounding boxes.
+    /// When provided, DeliveryService calculates one or more packages from these parts.
+    /// </summary>
+    public List<ShippingPackagePartRequest> Parts { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets package planning constraints and packaging material margins.
+    /// </summary>
+    public ShippingPackagingOptionsRequest Packaging { get; set; } = new();
+
+    /// <summary>
     /// Gets or sets whether standard public SHIPPOP rates should be used.
     /// </summary>
     public bool UsePublicRates { get; set; }

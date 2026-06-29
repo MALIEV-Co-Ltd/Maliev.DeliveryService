@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 
 using Maliev.DeliveryService.Application.Abstractions;
 using Maliev.DeliveryService.Application.DTOs;
+using Maliev.DeliveryService.Application.Services;
 using Microsoft.Extensions.Options;
 
 namespace Maliev.DeliveryService.Infrastructure.Shipping;
@@ -59,6 +60,7 @@ public class ShippopShippingGatewayService : IShippopShippingGatewayService
         foreach (var courier in couriers)
         {
             courier.Provider = "Shippop";
+            courier.LogoUrl = CourierLogoCatalog.ResolveLogoUrl(courier.CourierCode, courier.CourierName);
         }
 
         return Task.FromResult<IReadOnlyList<ShippingCourierResponse>>(couriers);
@@ -276,6 +278,7 @@ public class ShippopShippingGatewayService : IShippopShippingGatewayService
                 Currency = ReadString(node, "currency") ?? "THB",
                 ServiceLevel = ReadString(node, "service_level", "serviceLevel", "service_type", "serviceType"),
                 EstimatedDelivery = ReadString(node, "estimate_time", "estimatedDelivery", "delivery_time"),
+                CourierLogoUrl = CourierLogoCatalog.ResolveLogoUrl(courierCode, ReadString(node, "courier_name", "courierName", "name")),
                 Provider = "Shippop"
             };
         }
@@ -307,6 +310,7 @@ public class ShippopShippingGatewayService : IShippopShippingGatewayService
                 Currency = "THB",
                 ServiceLevel = ReadString(node, "type", "ref"),
                 EstimatedDelivery = ReadString(node, "duration", "estimatedDelivery", "delivery_time"),
+                CourierLogoUrl = CourierLogoCatalog.ResolveLogoUrl(courierCode, ReadString(node, "name", "courier_name", "courierName")),
                 Provider = "Shippop"
             };
         }

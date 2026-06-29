@@ -51,6 +51,9 @@ public class ShippopShippingGatewayServiceTests
         Assert.True(document.RootElement.GetProperty("data").TryGetProperty("0", out var shipment));
         Assert.Equal("10400", shipment.GetProperty("from").GetProperty("postcode").GetString());
         Assert.Equal("TH", shipment.GetProperty("to").GetProperty("country_code").GetString());
+        Assert.False(shipment.GetProperty("from").TryGetProperty("email", out _));
+        Assert.False(shipment.GetProperty("from").TryGetProperty("lat", out _));
+        Assert.False(shipment.GetProperty("from").TryGetProperty("lng", out _));
         Assert.Equal("EMST", shipment.GetProperty("courier_code").GetString());
         Assert.Equal(1, shipment.GetProperty("showall").GetInt32());
         var rate = Assert.Single(rates);

@@ -234,20 +234,30 @@ public class ShippopShippingGatewayService : IShippopShippingGatewayService
 
     private static object ToShippopAddress(ShippingAddressRequest address)
     {
-        return new
+        var payload = new Dictionary<string, object?>
         {
-            name = address.Name,
-            address = address.Address,
-            district = address.District,
-            state = address.State,
-            province = address.Province,
-            postcode = address.Postcode,
-            country_code = NormalizeCountryCode(address.CountryCode),
-            tel = address.Tel,
-            email = address.Email,
-            lat = address.Lat,
-            lng = address.Lng
+            ["name"] = address.Name,
+            ["address"] = address.Address,
+            ["district"] = address.District,
+            ["state"] = address.State,
+            ["province"] = address.Province,
+            ["postcode"] = address.Postcode,
+            ["country_code"] = NormalizeCountryCode(address.CountryCode),
+            ["tel"] = address.Tel
         };
+
+        AddIfPresent(payload, "email", address.Email);
+        AddIfPresent(payload, "lat", address.Lat);
+        AddIfPresent(payload, "lng", address.Lng);
+        return payload;
+    }
+
+    private static void AddIfPresent(Dictionary<string, object?> payload, string key, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            payload[key] = value.Trim();
+        }
     }
 
     private void EnsureDomesticApiKeyConfigured()

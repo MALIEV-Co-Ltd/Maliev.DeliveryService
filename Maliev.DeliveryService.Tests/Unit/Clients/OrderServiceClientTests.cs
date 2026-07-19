@@ -1,0 +1,285 @@
+using Maliev.DeliveryService.Application.Abstractions;
+using Maliev.DeliveryService.Infrastructure.HttpClients;
+using Microsoft.Extensions.Logging;
+using Moq;
+using System.Net;
+using System.Net.Http;
+using System.Text.Json;
+using Xunit;
+
+namespace Maliev.DeliveryService.Tests.Unit.Clients;
+
+public class OrderServiceClientTests
+{
+    private readonly Mock<ILogger<OrderServiceClient>> _mockLogger;
+
+    public OrderServiceClientTests()
+    {
+        _mockLogger = new Mock<ILogger<OrderServiceClient>>();
+    }
+
+    [Fact]
+    public async Task GetOrderAsync_Found_ReturnsDto()
+    {
+        // Arrange
+        var orderId = "ORD-123";
+        var billingAddressId = Guid.NewGuid();
+        var shippingAddressId = Guid.NewGuid();
+        var responseData = new
+        {
+            OrderId = orderId,
+            CustomerId = Guid.NewGuid().ToString(),
+            CustomerPoNumber = "PO-456",
+            ServiceCategoryName = "Cat",
+            ProcessTypeName = "Proc",
+            OrderedQuantity = 10,
+            ManufacturedQuantity = 10,
+            BillingAddressId = billingAddressId,
+            BillingCompanyName = "Bangkok Precision Parts",
+            ShippingAddressId = shippingAddressId,
+            ShippingAddressLine1 = "88 Rama IX Road",
+            ShippingAddressLine2 = "Floor 12",
+            ShippingCity = "Bangkok",
+            ShippingProvince = "Bangkok",
+            ShippingPostalCode = "10310",
+            ShippingCountry = "TH",
+            DeliveryContactName = "Natt Customer",
+            DeliveryContactPhone = "+66810000002",
+            DeliveryContactEmail = "shipping@example.test",
+            Version = "20260619"
+        };
+
+        var httpClient = CreateHttpClient(HttpStatusCode.OK, responseData);
+        var client = new OrderServiceClient(httpClient, _mockLogger.Object);
+
+        // Act
+        var result = await client.GetOrderAsync(orderId);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(orderId, result.OrderId);
+        Assert.Equal("PO-456", result.OrderNumber);
+        Assert.Equal("Bangkok Precision Parts", result.CustomerName);
+        Assert.Equal(billingAddressId, result.BillingAddressId);
+        Assert.Equal(shippingAddressId, result.ShippingAddressId);
+        Assert.Equal("88 Rama IX Road", result.ShippingAddressLine1);
+        Assert.Equal("Floor 12", result.ShippingAddressLine2);
+        Assert.Equal("Bangkok", result.ShippingCity);
+        Assert.Equal("Bangkok", result.ShippingProvince);
+        Assert.Equal("10310", result.ShippingPostalCode);
+        Assert.Equal("TH", result.ShippingCountry);
+        Assert.Equal("Natt Customer", result.DeliveryContactName);
+        Assert.Equal("+66810000002", result.DeliveryContactPhone);
+        Assert.Equal("shipping@example.test", result.DeliveryContactEmail);
+        Assert.Equal("20260619", result.Version);
+        Assert.Single(result.Items);
+        Assert.Equal("Cat", result.Items[0].ProductCode);
+    }
+
+    [Fact]
+    public async Task SyncDeliverySnapshotAsync_UsesCurrentOrderVersionAndPutsDeliveryDates()
+    {
+        var orderNumber = "MO-20260619-0001";
+        var orderId = "8f4af6ad-25ab-47c7-bde3-b2c661ce43fa";
+        var promised = new DateTime(2026, 6, 22, 0, 0, 0, DateTimeKind.Utc);
+        var actual = new DateTime(2026, 6, 23, 8, 30, 0, DateTimeKind.Utc);
+        var requests = new List<(HttpMethod Method, string Path, string Body)>();
+        var handler = new MultiResponseHttpMessageHandler(request =>
+        {
+            var body = request.Content is null
+                ? string.Empty
+                : request.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            requests.Add((request.Method, request.RequestUri?.AbsolutePath ?? string.Empty, body));
+
+            if (request.Method == HttpMethod.Get &&
+                request.RequestUri?.AbsolutePath.EndsWith($"/order/v1/orders/{orderNumber}/items", StringComparison.Ordinal) == true)
+            {
+                return (HttpStatusCode.OK, Array.Empty<object>());
+            }
+
+            if (request.Method == HttpMethod.Get)
+            {
+                return (HttpStatusCode.OK, new
+                {
+                    orderId,
+                    customerId = Guid.NewGuid().ToString("D"),
+                    version = "20260620",
+                    customerPoNumber = orderNumber
+                });
+            }
+
+            return (HttpStatusCode.OK, new { orderId });
+        });
+        var client = new OrderServiceClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") }, _mockLogger.Object);
+
+        var synced = await client.SyncDeliverySnapshotAsync(
+            orderNumber,
+            promised,
+            actual,
+            "Receiving Dock",
+            "+66810000003",
+            "receiving@example.test");
+
+        Assert.True(synced);
+        var put = Assert.Single(requests, request => request.Method == HttpMethod.Put);
+        Assert.Equal($"/order/v1/orders/{orderId}", put.Path);
+        using var payload = JsonDocument.Parse(put.Body);
+        Assert.Equal("20260620", payload.RootElement.GetProperty("version").GetString());
+        Assert.Equal("Receiving Dock", payload.RootElement.GetProperty("deliveryContactName").GetString());
+        Assert.Equal("+66810000003", payload.RootElement.GetProperty("deliveryContactPhone").GetString());
+        Assert.Equal("receiving@example.test", payload.RootElement.GetProperty("deliveryContactEmail").GetString());
+        Assert.True(payload.RootElement.TryGetProperty("promisedDeliveryDate", out _));
+        Assert.True(payload.RootElement.TryGetProperty("actualDeliveryDate", out _));
+    }
+
+    [Fact]
+    public async Task GetOrderAsync_WithOrderServiceItemsWireShape_ReturnsEveryProductionItem()
+    {
+        var orderId = "ORD-MULTI-ITEM";
+        var customerId = Guid.NewGuid();
+        var firstPartId = Guid.NewGuid();
+        var secondPartId = Guid.NewGuid();
+        var handler = new MultiResponseHttpMessageHandler(request =>
+        {
+            if (request.RequestUri?.AbsolutePath.EndsWith($"/order/v1/orders/{orderId}/items", StringComparison.Ordinal) == true)
+            {
+                return (HttpStatusCode.OK, new[]
+                {
+                    new
+                    {
+                        orderItemId = Guid.NewGuid(),
+                        sourceProjectPartId = firstPartId,
+                        materialId = Guid.NewGuid(),
+                        materialSnapshotJson = JsonSerializer.Serialize(new { sourceMaterialId = "pla-black" }),
+                        configurationSnapshotJson = JsonSerializer.Serialize(new { fileName = "gear.step", quantity = 2 }),
+                        technology = "FDM",
+                        volumeCm3 = 12.5m,
+                        quantity = 2,
+                        estimatedPrintTimeMinutes = 40
+                    },
+                    new
+                    {
+                        orderItemId = Guid.NewGuid(),
+                        sourceProjectPartId = secondPartId,
+                        materialId = Guid.NewGuid(),
+                        materialSnapshotJson = JsonSerializer.Serialize(new { sourceMaterialId = "resin-clear" }),
+                        configurationSnapshotJson = JsonSerializer.Serialize(new { fileName = "lens.step", quantity = 1 }),
+                        technology = "SLA",
+                        volumeCm3 = 4.25m,
+                        quantity = 1,
+                        estimatedPrintTimeMinutes = 25
+                    }
+                });
+            }
+
+            return (HttpStatusCode.OK, new
+            {
+                orderId,
+                customerId = customerId.ToString("D"),
+                serviceCategoryName = "3D Printing",
+                processTypeName = "FDM",
+                orderedQuantity = 3,
+                manufacturedQuantity = 3
+            });
+        });
+        var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://localhost") };
+        var client = new OrderServiceClient(httpClient, _mockLogger.Object);
+
+        var result = await client.GetOrderAsync(orderId);
+
+        Assert.NotNull(result);
+        Assert.Equal(2, result.Items.Count);
+        Assert.Equal(firstPartId.ToString("N"), result.Items[0].ProductCode);
+        Assert.Equal("gear.step", result.Items[0].ProductName);
+        Assert.Equal(2m, result.Items[0].QuantityOrdered);
+        Assert.Equal(2m, result.Items[0].QuantityManufactured);
+        Assert.Equal("pcs", result.Items[0].UnitOfMeasure);
+        Assert.Equal(secondPartId.ToString("N"), result.Items[1].ProductCode);
+        Assert.Equal("lens.step", result.Items[1].ProductName);
+        Assert.Equal(1m, result.Items[1].QuantityOrdered);
+        Assert.Equal(1m, result.Items[1].QuantityManufactured);
+    }
+
+    [Fact]
+    public async Task GetOrderAsync_NotFound_ReturnsNull()
+    {
+        // Arrange
+        var httpClient = CreateHttpClient(HttpStatusCode.NotFound, null);
+        var client = new OrderServiceClient(httpClient, _mockLogger.Object);
+
+        // Act
+        var result = await client.GetOrderAsync("ORD-MISSING");
+
+        // Assert
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task GetOrderAsync_HttpRequestException_Throws()
+    {
+        // Arrange
+        var handler = new MockErrorHttpMessageHandler();
+        var client = new OrderServiceClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") }, _mockLogger.Object);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<HttpRequestException>(() => client.GetOrderAsync("ORD-ERR"));
+    }
+
+    private class MockErrorHttpMessageHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            throw new HttpRequestException("Network error");
+        }
+    }
+
+    private HttpClient CreateHttpClient(HttpStatusCode statusCode, object? responseData)
+    {
+        var handler = new MockHttpMessageHandler(statusCode, responseData);
+        var client = new HttpClient(handler);
+        client.BaseAddress = new Uri("http://localhost");
+        return client;
+    }
+
+    private class MockHttpMessageHandler : HttpMessageHandler
+    {
+        private readonly HttpStatusCode _statusCode;
+        private readonly object? _responseData;
+
+        public MockHttpMessageHandler(HttpStatusCode statusCode, object? responseData)
+        {
+            _statusCode = statusCode;
+            _responseData = responseData;
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var response = new HttpResponseMessage(_statusCode);
+            if (_responseData != null)
+            {
+                response.Content = new StringContent(JsonSerializer.Serialize(_responseData));
+            }
+            else if (_statusCode == HttpStatusCode.OK)
+            {
+                response.Content = new StringContent("{}"); // Empty valid JSON if OK and no data
+            }
+            return Task.FromResult(response);
+        }
+    }
+
+    private sealed class MultiResponseHttpMessageHandler(
+        Func<HttpRequestMessage, (HttpStatusCode StatusCode, object? Body)> responseFactory) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            (HttpStatusCode statusCode, object? body) = responseFactory(request);
+            var response = new HttpResponseMessage(statusCode);
+            if (body != null)
+            {
+                response.Content = new StringContent(JsonSerializer.Serialize(body));
+            }
+
+            return Task.FromResult(response);
+        }
+    }
+}

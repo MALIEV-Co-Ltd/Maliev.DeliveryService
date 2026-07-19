@@ -1,0 +1,67 @@
+using Maliev.DeliveryService.Application.Abstractions;
+
+namespace Maliev.DeliveryService.Tests.Fakes;
+
+/// <summary>
+/// Fake implementation of IFileStorageService for testing (no mocking libraries)
+/// </summary>
+public class FakeFileStorageService : IFileStorageService
+{
+    private readonly Dictionary<string, byte[]> _files = new();
+    private bool _shouldThrow;
+
+    public void SetThrowError(bool throwError)
+    {
+        _shouldThrow = throwError;
+    }
+
+    public Task<string> UploadAsync(Stream fileStream, string fileName, string contentType, CancellationToken ct = default)
+    {
+        if (_shouldThrow) throw new Exception("Fake storage error");
+
+        using var memoryStream = new MemoryStream();
+        fileStream.CopyTo(memoryStream);
+        var fileData = memoryStream.ToArray();
+
+        var storageUrl = $"gs://fake-bucket/{Guid.NewGuid()}/{fileName}";
+        _files[storageUrl] = fileData;
+
+        return Task.FromResult(storageUrl);
+    }
+
+    public Task<string> GetSignedUrlAsync(string fileName, TimeSpan expiration, CancellationToken ct = default)
+    {
+        var signedUrl = $"https://storage.googleapis.com/fake-bucket/{fileName}?signed=true";
+        return Task.FromResult(signedUrl);
+    }
+
+    public Task<byte[]> DownloadAsync(string fileName, CancellationToken ct = default)
+    {
+        return _files.TryGetValue(fileName, out var data)
+            ? Task.FromResult(data)
+            : throw new FileNotFoundException($"Fake file not found: {fileName}", fileName);
+    }
+
+    public Task DeleteAsync(string fileName, CancellationToken ct = default)
+    {
+        _files.Remove(fileName);
+        return Task.CompletedTask;
+    }
+
+    public Task<bool> ExistsAsync(string fileName, CancellationToken ct = default)
+    {
+        return Task.FromResult(_files.ContainsKey(fileName));
+    }
+
+    // Test helper methods
+    public byte[]? GetFileData(string storageUrl)
+    {
+        _files.TryGetValue(storageUrl, out var data);
+        return data;
+    }
+
+    public void Clear()
+    {
+        _files.Clear();
+    }
+}

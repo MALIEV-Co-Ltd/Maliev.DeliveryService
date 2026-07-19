@@ -1,0 +1,841 @@
+openapi: 3.0.3
+info:
+  title: Delivery Note System API
+  description: |
+    API for managing delivery notes (ใบส่งของ) for shipments from factory to customers.
+
+    Features:
+    - Create and track delivery notes
+    - Handle partial deliveries
+    - Generate bilingual Thai/English PDFs
+    - Manage delivery evidence (signatures, photos)
+    - Customer-scoped access control
+    - Event-driven integration with OrderService and NotificationService
+  version: 1.0.0
+  contact:
+    name: Maliev Platform Team
+    email: support@maliev.com
+
+servers:
+  - url: https://api.maliev.com/delivery/v1
+    description: Production
+  - url: https://staging-api.maliev.com/delivery/v1
+    description: Staging
+  - url: http://localhost:5000/delivery/v1
+    description: Local Development
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Delivery Notes
+    description: CRUD operations for delivery notes
+  - name: Files
+    description: File attachments (signatures, photos, packing lists)
+  - name: PDF
+    description: PDF generation for delivery notes
+
+paths:
+  /delivery-notes:
+    post:
+      tags:
+        - Delivery Notes
+      summary: Create a new delivery note
+      description: |
+        Creates a new delivery note for shipment tracking.
+        Requires either orderId or purchaseOrderId.
+        Validates that delivered quantities do not exceed manufactured quantities.
+      operationId: createDeliveryNote
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDeliveryNoteRequest'
+      responses:
+        '201':
+          description: Delivery note created successfully
+          headers:
+            Location:
+              schema:
+                type: string
+              description: URL to the created delivery note
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryNoteResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    get:
+      tags:
+        - Delivery Notes
+      summary: List delivery notes
+      description: |
+        Returns a paginated list of delivery notes with optional filtering.
+        Results are scoped to customers the user has access to.
+      operationId: listDeliveryNotes
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: orderId
+          in: query
+          schema:
+            type: string
+          description: Filter by order ID
+        - name: customerId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by customer ID
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/DeliveryStatus'
+          description: Filter by delivery status
+        - name: fromDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter by delivery date range (start)
+        - name: toDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter by delivery date range (end)
+      responses:
+        '200':
+          description: List of delivery notes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedDeliveryNotesResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /delivery-notes/{deliveryNoteId}:
+    get:
+      tags:
+        - Delivery Notes
+      summary: Get delivery note by ID
+      description: Returns detailed information for a specific delivery note
+      operationId: getDeliveryNote
+      parameters:
+        - $ref: '#/components/parameters/DeliveryNoteId'
+      responses:
+        '200':
+          description: Delivery note details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryNoteResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    put:
+      tags:
+        - Delivery Notes
+      summary: Update delivery note
+      description: |
+        Updates delivery note details (carrier, tracking, contact info).
+        Cannot modify items or status (use PATCH /status endpoint for status changes).
+      operationId: updateDeliveryNote
+      parameters:
+        - $ref: '#/components/parameters/DeliveryNoteId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDeliveryNoteRequest'
+      responses:
+        '200':
+          description: Delivery note updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryNoteResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+    delete:
+      tags:
+        - Delivery Notes
+      summary: Delete delivery note
+      description: |
+        Soft-deletes a delivery note.
+        Only delivery notes with status "Pending" can be deleted.
+      operationId: deleteDeliveryNote
+      parameters:
+        - $ref: '#/components/parameters/DeliveryNoteId'
+      responses:
+        '204':
+          description: Delivery note deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '400':
+          description: Cannot delete delivery note (invalid status)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /delivery-notes/{deliveryNoteId}/status:
+    patch:
+      tags:
+        - Delivery Notes
+      summary: Update delivery status
+      description: |
+        Changes the delivery status.
+        Validates status transitions according to state machine rules.
+        Transition to "Delivered" requires actualDeliveryTime and receivedByName.
+      operationId: updateDeliveryStatus
+      parameters:
+        - $ref: '#/components/parameters/DeliveryNoteId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDeliveryStatusRequest'
+      responses:
+        '200':
+          description: Status updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryNoteResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /delivery-notes/{deliveryNoteId}/files:
+    post:
+      tags:
+        - Files
+      summary: Upload file attachment
+      description: |
+        Uploads a file (signature, photo, packing list) to a delivery note.
+        Maximum file size: 5MB.
+      operationId: addFile
+      parameters:
+        - $ref: '#/components/parameters/DeliveryNoteId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - fileType
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: File to upload (max 5MB)
+                fileType:
+                  $ref: '#/components/schemas/DeliveryFileType'
+      responses:
+        '201':
+          description: File uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryNoteFileResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          description: File too large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    get:
+      tags:
+        - Files
+      summary: List file attachments
+      description: Returns all file attachments for a delivery note
+      operationId: listFiles
+      parameters:
+        - $ref: '#/components/parameters/DeliveryNoteId'
+      responses:
+        '200':
+          description: List of file attachments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DeliveryNoteFileResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /delivery-notes/{deliveryNoteId}/generate-pdf:
+    post:
+      tags:
+        - PDF
+      summary: Generate delivery note PDF
+      description: |
+        Generates a bilingual Thai/English PDF for the delivery note.
+        PDF generation is asynchronous and may take a few seconds.
+      operationId: generatePdf
+      parameters:
+        - $ref: '#/components/parameters/DeliveryNoteId'
+      responses:
+        '202':
+          description: PDF generation initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - pdfUrl
+                properties:
+                  pdfUrl:
+                    type: string
+                    format: uri
+                    description: URL to download the generated PDF
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    DeliveryNoteId:
+      name: deliveryNoteId
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^DN-\d{4}-\d{6}$'
+        example: 'DN-2026-000001'
+      description: Delivery note ID in format DN-YYYY-XXXXXX
+
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      description: Page number for pagination
+
+    PageSize:
+      name: pageSize
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      description: Number of items per page
+
+  schemas:
+    CreateDeliveryNoteRequest:
+      type: object
+      required:
+        - deliveryDate
+        - deliveryContactName
+        - deliveryContactPhone
+        - items
+      properties:
+        orderId:
+          type: string
+          nullable: true
+          description: Order ID from OrderService (required if purchaseOrderId is null)
+          example: 'ORD-2026-001'
+        purchaseOrderId:
+          type: integer
+          nullable: true
+          description: Purchase order ID from PurchaseOrderService (required if orderId is null)
+          example: 12345
+        deliveryDate:
+          type: string
+          format: date-time
+          description: Scheduled delivery date
+        shippingAddressId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Reference to existing address
+        deliveryContactName:
+          type: string
+          maxLength: 200
+          description: Name of contact person at delivery location
+        deliveryContactPhone:
+          type: string
+          maxLength: 50
+          description: Phone number of contact person
+        deliveryContactEmail:
+          type: string
+          format: email
+          maxLength: 200
+          nullable: true
+          description: Email of contact person
+        carrierName:
+          type: string
+          maxLength: 200
+          nullable: true
+          description: Shipping carrier name
+          example: 'Kerry Express'
+        trackingNumber:
+          type: string
+          maxLength: 200
+          nullable: true
+          description: Carrier tracking number
+        deliveryInstructions:
+          type: string
+          nullable: true
+          description: Special delivery instructions
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/CreateDeliveryNoteItemRequest'
+
+    CreateDeliveryNoteItemRequest:
+      type: object
+      required:
+        - productCode
+        - productName
+        - quantityOrdered
+        - quantityManufactured
+        - quantityDelivered
+        - unitOfMeasure
+      properties:
+        orderId:
+          type: string
+          nullable: true
+          description: Order line item ID
+        purchaseOrderItemId:
+          type: integer
+          nullable: true
+          description: Purchase order line item ID
+        productCode:
+          type: string
+          maxLength: 100
+          example: 'PROD-001'
+        productName:
+          type: string
+          maxLength: 500
+          example: 'Widget A'
+        quantityOrdered:
+          type: number
+          format: decimal
+          minimum: 0
+          example: 100
+        quantityManufactured:
+          type: number
+          format: decimal
+          minimum: 0
+          example: 95
+        quantityDelivered:
+          type: number
+          format: decimal
+          minimum: 0.0001
+          example: 95
+        unitOfMeasure:
+          type: string
+          maxLength: 50
+          example: 'pcs'
+        itemNotes:
+          type: string
+          nullable: true
+          description: Notes specific to this item
+
+    UpdateDeliveryNoteRequest:
+      type: object
+      properties:
+        deliveryDate:
+          type: string
+          format: date-time
+          nullable: true
+        shippingAddressId:
+          type: string
+          format: uuid
+          nullable: true
+        deliveryContactName:
+          type: string
+          maxLength: 200
+          nullable: true
+        deliveryContactPhone:
+          type: string
+          maxLength: 50
+          nullable: true
+        carrierName:
+          type: string
+          maxLength: 200
+          nullable: true
+        trackingNumber:
+          type: string
+          maxLength: 200
+          nullable: true
+        shippingCost:
+          type: number
+          format: decimal
+          nullable: true
+        deliveryInstructions:
+          type: string
+          nullable: true
+        internalNotes:
+          type: string
+          nullable: true
+
+    UpdateDeliveryStatusRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          $ref: '#/components/schemas/DeliveryStatus'
+        actualDeliveryTime:
+          type: string
+          format: date-time
+          nullable: true
+          description: Required when status is "Delivered"
+        receivedByName:
+          type: string
+          maxLength: 200
+          nullable: true
+          description: Required when status is "Delivered"
+        notes:
+          type: string
+          nullable: true
+
+    DeliveryNoteResponse:
+      type: object
+      required:
+        - deliveryNoteId
+        - customerId
+        - customerName
+        - deliveryDate
+        - status
+        - items
+        - createdAt
+        - createdBy
+      properties:
+        deliveryNoteId:
+          type: string
+          example: 'DN-2026-000001'
+        orderId:
+          type: string
+          nullable: true
+        purchaseOrderId:
+          type: integer
+          nullable: true
+        customerId:
+          type: string
+          format: uuid
+        customerName:
+          type: string
+        deliveryDate:
+          type: string
+          format: date-time
+        actualDeliveryTime:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          $ref: '#/components/schemas/DeliveryStatus'
+        shippingAddressLine1:
+          type: string
+          nullable: true
+        shippingCity:
+          type: string
+          nullable: true
+        shippingProvince:
+          type: string
+          nullable: true
+        deliveryContactName:
+          type: string
+          nullable: true
+        deliveryContactPhone:
+          type: string
+          nullable: true
+        carrierName:
+          type: string
+          nullable: true
+        trackingNumber:
+          type: string
+          nullable: true
+        shippingCost:
+          type: number
+          format: decimal
+          nullable: true
+        receivedByName:
+          type: string
+          nullable: true
+        signedAt:
+          type: string
+          format: date-time
+          nullable: true
+        deliveryInstructions:
+          type: string
+          nullable: true
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeliveryNoteItemResponse'
+        createdAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+
+    DeliveryNoteItemResponse:
+      type: object
+      required:
+        - id
+        - productCode
+        - productName
+        - quantityOrdered
+        - quantityManufactured
+        - quantityDelivered
+        - unitOfMeasure
+      properties:
+        id:
+          type: integer
+          format: int64
+        productCode:
+          type: string
+        productName:
+          type: string
+        quantityOrdered:
+          type: number
+          format: decimal
+        quantityManufactured:
+          type: number
+          format: decimal
+        quantityDelivered:
+          type: number
+          format: decimal
+        unitOfMeasure:
+          type: string
+        itemNotes:
+          type: string
+          nullable: true
+
+    DeliveryNoteSummaryDto:
+      type: object
+      required:
+        - deliveryNoteId
+        - customerName
+        - deliveryDate
+        - status
+        - itemCount
+      properties:
+        deliveryNoteId:
+          type: string
+        orderId:
+          type: string
+          nullable: true
+        customerName:
+          type: string
+        deliveryDate:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/DeliveryStatus'
+        itemCount:
+          type: integer
+        trackingNumber:
+          type: string
+          nullable: true
+
+    PagedDeliveryNotesResponse:
+      type: object
+      required:
+        - items
+        - totalCount
+        - page
+        - pageSize
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeliveryNoteSummaryDto'
+        totalCount:
+          type: integer
+          description: Total number of items across all pages
+        page:
+          type: integer
+          description: Current page number
+        pageSize:
+          type: integer
+          description: Number of items per page
+        totalPages:
+          type: integer
+          description: Total number of pages
+
+    DeliveryNoteFileResponse:
+      type: object
+      required:
+        - id
+        - deliveryNoteId
+        - fileName
+        - storageUrl
+        - contentType
+        - fileSize
+        - fileType
+        - uploadedAt
+        - uploadedBy
+      properties:
+        id:
+          type: string
+          format: uuid
+        deliveryNoteId:
+          type: string
+        fileName:
+          type: string
+        storageUrl:
+          type: string
+          format: uri
+        contentType:
+          type: string
+        fileSize:
+          type: integer
+          format: int64
+        fileType:
+          $ref: '#/components/schemas/DeliveryFileType'
+        uploadedAt:
+          type: string
+          format: date-time
+        uploadedBy:
+          type: string
+
+    DeliveryStatus:
+      type: string
+      enum:
+        - Pending
+        - InTransit
+        - Delivered
+        - PartiallyDelivered
+        - Cancelled
+      description: Current status of the delivery
+
+    DeliveryFileType:
+      type: string
+      enum:
+        - Signature
+        - Photo
+        - Invoice
+        - PackingList
+        - Other
+      description: Type of attached file
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          description: Additional error details
+          nullable: true
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: 'VALIDATION_ERROR'
+            message: 'Delivery quantity cannot exceed manufactured quantity'
+
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: 'UNAUTHORIZED'
+            message: 'Valid authentication token required'
+
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: 'FORBIDDEN'
+            message: 'You do not have permission to access this delivery note'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: 'NOT_FOUND'
+            message: 'Delivery note DN-2026-000001 not found'
+
+    Conflict:
+      description: Concurrency conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: 'CONFLICT'
+            message: 'Delivery note was modified by another user. Please reload and try again.'

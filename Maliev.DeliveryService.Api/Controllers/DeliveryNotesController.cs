@@ -9,6 +9,7 @@ using Maliev.Aspire.ServiceDefaults.Authorization;
 using Maliev.MessagingContracts;
 using Maliev.MessagingContracts.Contracts.Delivery;
 using MassTransit;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Maliev.DeliveryService.Api.Controllers;
@@ -434,7 +435,7 @@ public class DeliveryNotesController : ControllerBase
     {
         try
         {
-            return HttpContext.GetRequestedApiVersion()?.ToString() ?? "1.0";
+            return HttpContext.RequestedApiVersion?.ToString() ?? "1.0";
         }
         catch (ArgumentException)
         {

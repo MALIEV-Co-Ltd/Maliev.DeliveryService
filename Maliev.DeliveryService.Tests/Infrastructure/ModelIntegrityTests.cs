@@ -24,7 +24,7 @@ public class ModelIntegrityTests
     }
 
     [Fact]
-    public void Model_ShouldEnforceOneActiveDeliveryNotePerOrder()
+    public void Model_ShouldAllowMultipleDeliveryNotesPerOrder()
     {
         var options = new DbContextOptionsBuilder<DeliveryDbContext>()
             .UseNpgsql("Host=localhost;Database=ModelCheck")
@@ -35,10 +35,13 @@ public class ModelIntegrityTests
         Assert.NotNull(entity);
 
         var index = entity.GetIndexes()
-            .SingleOrDefault(index => index.GetDatabaseName() == "ux_delivery_notes_active_order_id");
+            .SingleOrDefault(index => index.GetDatabaseName() == "idx_delivery_notes_order_id");
 
         Assert.NotNull(index);
-        Assert.True(index.IsUnique);
-        Assert.Equal("order_id IS NOT NULL AND is_deleted = false", index.GetFilter());
+        Assert.False(index.IsUnique);
+        Assert.Null(index.GetFilter());
+        Assert.DoesNotContain(
+            entity.GetIndexes(),
+            candidate => candidate.GetDatabaseName() == "ux_delivery_notes_active_order_id");
     }
 }
